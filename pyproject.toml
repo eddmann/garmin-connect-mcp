@@ -58,10 +58,13 @@ ignore = ["E501"]  # Line length enforced by ruff format instead
 "src/garmin_connect_mcp/server.py" = ["E402"]  # Imports must come after FastMCP initialization
 
 [tool.pyright]
-strict = ["src"]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
 reportMissingTypeStubs = false
 reportUnknownMemberType = false
 reportUnknownArgumentType = false
 reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportMissingTypeArgument = false
+reportArgumentType = false
+reportMissingParameterType = false

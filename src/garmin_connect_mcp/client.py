@@ -95,7 +95,8 @@ def init_garmin_client(config: GarminConfig) -> Garmin | None:
                 oauth1_token, oauth2_token = result
 
                 # Check if MFA is required (oauth1_token will have mfa_token)
-                if hasattr(oauth1_token, "mfa_token") and oauth1_token.mfa_token:
+                mfa_token = getattr(oauth1_token, "mfa_token", None)
+                if mfa_token:
                     print("MFA required. Please enter your MFA code.", file=sys.stderr)
                     mfa_code = input("MFA one-time code: ")
 

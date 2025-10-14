@@ -1,15 +1,24 @@
 # Garmin Connect MCP Server
 
-A Model Context Protocol (MCP) server for Garmin Connect integration. Access your activities, health data, training metrics, and more through Claude and other LLMs.
+A Model Context Protocol (MCP) server for Garmin Connect integration. Access your activities, health data, training metrics, and more through Claude and other LLMs with intelligent analysis and insights.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-1.3.1-green.svg)](https://modelcontextprotocol.io)
 
 ## Overview
 
-This MCP server provides 73 tools to interact with your Garmin Connect account, organized into 11 categories:
+This MCP server provides **21 tools** with intelligent analysis, **3 MCP resources** for ongoing context, and **6 MCP prompts** for common queries. Tools are organized by use-case, providing better LLM integration and richer insights.
 
-- Activities, Health & Wellness, Training, Challenges, Devices, Weight, Workouts, Gear, Data Management, Women's Health, and User Profile.
+**Key Features:**
+- 🎯 **Use-case focused tools** - Unified interfaces for related operations
+- 📊 **Structured responses** - Consistent JSON with data, analysis, and metadata
+- 🔍 **Rich analysis** - Automatic insights and pattern detection
+- 📈 **Training analysis** - Comprehensive training period analysis
+- 🔄 **Activity comparison** - Side-by-side activity comparisons
+- 🎲 **Similarity search** - Find similar activities
+- 🌍 **Unit support** - Both metric and imperial units
+- 📚 **MCP resources** - Ongoing context for athlete profile, training readiness, health
+- ⚡ **MCP prompts** - Pre-built templates for common queries
 
 ## Prerequisites
 
@@ -132,190 +141,157 @@ Add to your configuration file:
 }
 ```
 
-## Usage
+## Usage Examples
 
 Ask Claude to interact with your Garmin data using natural language:
 
-### Activities
+### Training Analysis
 
 ```
-"Show me my activities from last week"
-"What were the details of my last run?"
-"Show me split data for activity 12345678"
-"What was the weather during my morning ride?"
+"Analyze my training over the last 30 days"
+"Show me weekly trends for my running activities"
+"How has my training volume changed this month?"
+```
+
+### Activity Comparison
+
+```
+"Compare my last 3 runs"
+"Find activities similar to my morning run from yesterday"
+"Show me how my pace has improved over recent rides"
 ```
 
 ### Health & Wellness
 
 ```
-"How did I sleep last night?"
+"How did I sleep last week?"
 "What's my Body Battery level today?"
-"Show me my stress levels for yesterday"
-"What's my resting heart rate this week?"
+"Show me my stress levels and recovery status"
+"Am I ready to train hard today?"
 ```
 
-### Training
+### Performance Metrics
 
 ```
-"What's my VO2 max progress this month?"
-"Show me my hill score for the last 30 days"
-"What are my current race predictions?"
-"Show me my HRV data for today"
+"What's my VO2 max trend this month?"
+"Show me my hill score progression"
+"How's my HRV looking lately?"
 ```
 
-### Devices & Gear
+## Available Tools (21)
 
+### Activities (2 tools)
+
+| Tool                     | Description                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `query_activities`       | Unified activity queries (by ID, date range, specific date, pagination)     |
+| `get_activity_details`   | Comprehensive activity details (splits, weather, HR zones, gear)             |
+
+### Analysis (3 tools)
+
+| Tool                      | Description                                     |
+| ------------------------- | ----------------------------------------------- |
+| `analyze_training_period` | Comprehensive training analysis with insights   |
+| `compare_activities`      | Side-by-side activity comparison                |
+| `find_similar_activities` | Find activities matching criteria               |
+
+### Health & Wellness (4 tools)
+
+| Tool                      | Description                                            |
+| ------------------------- | ------------------------------------------------------ |
+| `query_health_summary`    | Daily health snapshot (stats, training readiness, Body Battery) |
+| `query_sleep_data`        | Sleep analysis with stages, scores, HRV                |
+| `query_heart_rate_data`   | Heart rate data with resting HR                        |
+| `query_activity_metrics`  | Activity metrics (steps, stress, respiration, SpO2, etc.) |
+
+### Training (3 tools)
+
+| Tool                      | Description                                            |
+| ------------------------- | ------------------------------------------------------ |
+| `analyze_training_period` | Training analysis for any period (see Analysis section) |
+| `get_performance_metrics` | VO2 max, hill score, endurance, HRV, fitness age       |
+| `get_training_effect`     | Training effect and progress summary                   |
+
+### Challenges & Goals (2 tools)
+
+| Tool                       | Description                                    |
+| -------------------------- | ---------------------------------------------- |
+| `query_goals_and_records`  | Goals, personal records, race predictions      |
+| `query_challenges`         | Challenges and badges (by status and type)     |
+
+### Devices & Gear (2 tools)
+
+| Tool            | Description                                              |
+| --------------- | -------------------------------------------------------- |
+| `query_devices` | Device information (with settings, solar data, alarms)   |
+| `query_gear`    | Gear and equipment (with defaults and usage stats)       |
+
+### Weight Management (2 tools)
+
+| Tool                  | Description                              |
+| --------------------- | ---------------------------------------- |
+| `query_weight_data`   | Weight data for date or range            |
+| `manage_weight_data`  | Add or delete weight entries             |
+
+### Other (3 tools)
+
+| Tool                   | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `manage_workouts`      | Workout management (list, get, download, upload)       |
+| `log_health_data`      | Log body composition, blood pressure, hydration        |
+| `query_womens_health`  | Pregnancy and menstrual cycle data                     |
+| `get_full_name`        | User profile name                                      |
+
+## MCP Resources (3)
+
+Resources provide ongoing context to context-aware MCP clients:
+
+- `garmin://athlete/profile` - Athlete profile with stats and zones
+- `garmin://training/readiness` - Current training readiness and Body Battery
+- `garmin://health/today` - Today's health snapshot (steps, sleep, stress, HR)
+
+## MCP Prompts (6)
+
+Pre-built templates for common queries:
+
+- `analyze_recent_training` - Analyze training over a period
+- `sleep_quality_report` - Sleep quality analysis with recommendations
+- `training_readiness_check` - Check if ready to train today
+- `activity_deep_dive` - Comprehensive activity analysis
+- `compare_recent_runs` - Compare recent runs for trends
+- `health_summary` - Comprehensive health overview
+
+## Response Format
+
+All tools return structured JSON with:
+
+```json
+{
+  "data": {
+    // Primary data payload with rich formatting
+    // Both raw values and human-readable formats
+  },
+  "analysis": {
+    "insights": [
+      // Automatic insights and patterns
+    ]
+  },
+  "metadata": {
+    "fetched_at": "2025-01-15T10:00:00Z",
+    // Query parameters, unit system, etc.
+  }
+}
 ```
-"List all my Garmin devices"
-"What's my primary training device?"
-"Show me solar charging data for my watch"
-```
 
-### Challenges & Goals
+## Development
 
-```
-"Show me my active challenges"
-"What badges have I earned?"
-"Show me my personal records"
-```
+See [CLAUDE.md](CLAUDE.md) for comprehensive developer documentation including:
 
-### Data Management
-
-```
-"Add a weigh-in of 75kg"
-"Record my blood pressure: 120/80"
-"Add 500ml of water to my hydration log"
-```
-
-## Available Tools
-
-### Activities (12 tools)
-
-| Tool                           | Description                                        |
-| ------------------------------ | -------------------------------------------------- |
-| `get_activities`               | Get paginated list of activities                   |
-| `get_activities_by_date`       | Get activities within a date range                 |
-| `get_activities_fordate`       | Get activities for a specific date                 |
-| `get_activity`                 | Get detailed activity information by ID            |
-| `get_activity_splits`          | Get activity lap/split data                        |
-| `get_activity_typed_splits`    | Get typed split data (e.g., kilometer splits)      |
-| `get_activity_split_summaries` | Get summary of all activity splits                 |
-| `get_activity_weather`         | Get weather conditions during an activity          |
-| `get_activity_hr_in_timezones` | Get heart rate time in zones for an activity       |
-| `get_activity_gear`            | Get gear used during an activity                   |
-| `get_activity_exercise_sets`   | Get exercise sets for strength training activities |
-| `get_last_activity`            | Get most recent activity                           |
-
-### Health & Wellness (21 tools)
-
-| Tool                      | Description                                   |
-| ------------------------- | --------------------------------------------- |
-| `get_stats`               | Get daily health statistics                   |
-| `get_user_summary`        | Get comprehensive user health summary         |
-| `get_body_composition`    | Get body composition metrics for a date range |
-| `get_stats_and_body`      | Get combined stats and body data              |
-| `get_steps_data`          | Get detailed step data for a specific date    |
-| `get_daily_steps`         | Get daily steps for a date range              |
-| `get_training_readiness`  | Get training readiness score                  |
-| `get_body_battery`        | Get Body Battery™ energy levels               |
-| `get_body_battery_events` | Get Body Battery charge/drain events          |
-| `get_blood_pressure`      | Get blood pressure measurements               |
-| `get_floors`              | Get floors climbed data                       |
-| `get_training_status`     | Get current training status                   |
-| `get_rhr_day`             | Get resting heart rate for a day              |
-| `get_heart_rates`         | Get heart rate data for a date/range          |
-| `get_hydration_data`      | Get hydration tracking data                   |
-| `get_sleep_data`          | Get sleep analysis and sleep stages           |
-| `get_stress_data`         | Get stress level measurements                 |
-| `get_respiration_data`    | Get respiration rate data                     |
-| `get_spo2_data`           | Get blood oxygen (SpO2) levels                |
-| `get_all_day_stress`      | Get all-day stress tracking data              |
-| `get_all_day_events`      | Get all-day health events                     |
-
-### Training (7 tools)
-
-| Tool                                 | Description                                     |
-| ------------------------------------ | ----------------------------------------------- |
-| `get_progress_summary_between_dates` | Get training progress summary for a date range  |
-| `get_hill_score`                     | Get hill climbing performance score             |
-| `get_endurance_score`                | Get endurance performance metrics               |
-| `get_training_effect`                | Get training effect for a specific activity     |
-| `get_max_metrics`                    | Get maximum performance metrics (VO2 max, etc.) |
-| `get_hrv_data`                       | Get heart rate variability data                 |
-| `get_fitnessage_data`                | Get fitness age calculation                     |
-
-### Challenges (9 tools)
-
-| Tool                                 | Description                            |
-| ------------------------------------ | -------------------------------------- |
-| `get_goals`                          | Get activity goals and targets         |
-| `get_personal_record`                | Get personal records across activities |
-| `get_earned_badges`                  | Get badges earned                      |
-| `get_adhoc_challenges`               | Get ad-hoc challenges                  |
-| `get_available_badge_challenges`     | Get available badge challenges         |
-| `get_badge_challenges`               | Get all badge challenges               |
-| `get_non_completed_badge_challenges` | Get incomplete badge challenges        |
-| `get_race_predictions`               | Get race time predictions              |
-| `get_inprogress_virtual_challenges`  | Get active virtual challenges          |
-
-### Devices (6 tools)
-
-| Tool                          | Description                                          |
-| ----------------------------- | ---------------------------------------------------- |
-| `get_devices`                 | List all registered Garmin devices                   |
-| `get_device_last_used`        | Get most recently used device                        |
-| `get_device_settings`         | Get device configuration settings                    |
-| `get_primary_training_device` | Get primary training device                          |
-| `get_device_solar_data`       | Get solar charging data (for solar-equipped devices) |
-| `get_device_alarms`           | Get configured device alarms                         |
-
-### Weight (4 tools)
-
-| Tool                  | Description                        |
-| --------------------- | ---------------------------------- |
-| `get_weigh_ins`       | Get weigh-in data for a date range |
-| `get_daily_weigh_ins` | Get weigh-ins for a specific date  |
-| `delete_weigh_ins`    | Delete weigh-in entries            |
-| `add_weigh_in`        | Add a new weigh-in record          |
-
-### Workouts (4 tools)
-
-| Tool                | Description                        |
-| ------------------- | ---------------------------------- |
-| `get_workouts`      | List all structured workouts       |
-| `get_workout_by_id` | Get workout details by ID          |
-| `download_workout`  | Get workout download information   |
-| `upload_workout`    | Upload a workout to Garmin Connect |
-
-### Gear (3 tools)
-
-| Tool                | Description               |
-| ------------------- | ------------------------- |
-| `get_gear`          | List user gear/equipment  |
-| `get_gear_defaults` | Get default gear settings |
-| `get_gear_stats`    | Get gear usage statistics |
-
-### Data Management (3 tools)
-
-| Tool                   | Description                         |
-| ---------------------- | ----------------------------------- |
-| `add_body_composition` | Add a body composition entry        |
-| `set_blood_pressure`   | Record a blood pressure measurement |
-| `add_hydration_data`   | Add a hydration log entry           |
-
-### Women's Health (3 tools)
-
-| Tool                          | Description                                  |
-| ----------------------------- | -------------------------------------------- |
-| `get_pregnancy_summary`       | Get pregnancy tracking summary               |
-| `get_menstrual_data_for_date` | Get menstrual cycle data for a specific date |
-| `get_menstrual_calendar_data` | Get menstrual calendar data for a date range |
-
-### User Profile (1 tool)
-
-| Tool            | Description                                      |
-| --------------- | ------------------------------------------------ |
-| `get_full_name` | Get user's full name from Garmin Connect profile |
+- Project architecture
+- Development commands
+- Tool design patterns
+- Testing strategy
+- Contributing guidelines
 
 ## License
 

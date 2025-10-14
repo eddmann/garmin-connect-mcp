@@ -4,7 +4,8 @@ from typing import Annotated
 
 from ..auth import load_config, validate_credentials
 from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
-from ..formatters import format_summary
+from ..response_builder import ResponseBuilder
+from ..time_utils import parse_date_string
 
 # Global client instance
 _garmin_wrapper: GarminClientWrapper | None = None
@@ -31,42 +32,67 @@ def _get_client() -> GarminClientWrapper:
     return _garmin_wrapper
 
 
-async def get_pregnancy_summary() -> str:
-    """Get pregnancy summary data."""
-    try:
-        client = _get_client()
-        summary = client.safe_call("get_pregnancy_summary")
-        return format_summary("Pregnancy Summary", summary)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_menstrual_data_for_date(
-    date: Annotated[str, "Date in YYYY-MM-DD format"],
+async def query_womens_health(
+    data_type: Annotated[str, "Data type: 'pregnancy' or 'menstrual'"],
+    date: Annotated[str | None, "Specific date (YYYY-MM-DD)"] = None,
+    start_date: Annotated[str | None, "Range start date (YYYY-MM-DD, for menstrual calendar)"] = None,
+    end_date: Annotated[str | None, "Range end date (YYYY-MM-DD, for menstrual calendar)"] = None,
 ) -> str:
-    """Get menstrual cycle data for a specific date."""
+    """
+    Query women's health data.
+
+    Data types:
+    - pregnancy: Get pregnancy tracking summary
+    - menstrual: Get menstrual cycle data (for specific date or date range)
+    """
     try:
         client = _get_client()
-        data = client.safe_call("get_menstrual_day_data", date)
-        return format_summary(f"Menstrual Data for {date}", data)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
 
+        if data_type == "pregnancy":
+            # Pregnancy summary
+            summary = client.safe_call("get_pregnancy_summary")
+            return ResponseBuilder.build_response(
+                data={"pregnancy_summary": summary},
+                metadata={"data_type": "pregnancy"},
+            )
 
-async def get_menstrual_calendar_data(
-    start_date: Annotated[str, "Start date in YYYY-MM-DD format"],
-    end_date: Annotated[str, "End date in YYYY-MM-DD format"],
-) -> str:
-    """Get menstrual calendar data for a date range."""
-    try:
-        client = _get_client()
-        data = client.safe_call("get_menstrual_calendar", start_date, end_date)
-        return format_summary(f"Menstrual Calendar ({start_date} to {end_date})", data)
+        elif data_type == "menstrual":
+            # Menstrual data
+            if date:
+                # Specific date
+                date_str = parse_date_string(date).strftime("%Y-%m-%d")
+                menstrual_data = client.safe_call("get_menstrual_data_for_date", date_str)
+                return ResponseBuilder.build_response(
+                    data={"menstrual_data": menstrual_data, "date": date_str},
+                    metadata={"data_type": "menstrual", "query_type": "single_date", "date": date_str},
+                )
+            elif start_date and end_date:
+                # Date range (calendar)
+                calendar_data = client.safe_call("get_menstrual_calendar_data", start_date, end_date)
+                return ResponseBuilder.build_response(
+                    data={"menstrual_calendar": calendar_data},
+                    metadata={
+                        "data_type": "menstrual",
+                        "query_type": "calendar",
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    },
+                )
+            else:
+                return ResponseBuilder.build_error_response(
+                    "Date or date range required for menstrual data",
+                    "invalid_parameters",
+                    ["Provide date for single day", "Or provide start_date and end_date for calendar view"],
+                )
+
+        else:
+            return ResponseBuilder.build_error_response(
+                f"Invalid data type: {data_type}",
+                "invalid_parameters",
+                ["Valid types: 'pregnancy', 'menstrual'"],
+            )
+
     except GarminAPIError as e:
-        return f"Error: {e.message}"
+        return ResponseBuilder.build_error_response(e.message, "garmin_api_error")
     except Exception as e:
-        return f"Unexpected error: {str(e)}"
+        return ResponseBuilder.build_error_response(str(e), "unexpected_error")

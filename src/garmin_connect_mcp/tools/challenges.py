@@ -1,10 +1,10 @@
-"""Challenge and goal tools for Garmin Connect MCP server."""
+"""Challenges, goals, and records tools for Garmin Connect MCP server."""
 
 from typing import Annotated
 
 from ..auth import load_config, validate_credentials
 from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
-from ..formatters import format_summary
+from ..response_builder import ResponseBuilder
 
 # Global client instance
 _garmin_wrapper: GarminClientWrapper | None = None
@@ -31,128 +31,148 @@ def _get_client() -> GarminClientWrapper:
     return _garmin_wrapper
 
 
-async def get_goals(
-    goal_type: Annotated[str, "Goal type (e.g., 'active')"] = "active",
+async def query_goals_and_records(
+    include_goals: Annotated[bool, "Include activity goals"] = True,
+    include_prs: Annotated[bool, "Include personal records"] = True,
+    include_race_predictions: Annotated[bool, "Include race time predictions"] = True,
 ) -> str:
-    """Get goals of a specific type."""
+    """
+    Get goals, personal records, and race predictions.
+
+    Returns your activity goals, personal best performances,
+    and predicted race times based on recent training.
+    """
     try:
         client = _get_client()
-        goals = client.safe_call("get_goals", goal_type)
-        return format_summary(f"Goals ({goal_type})", goals)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
 
+        data = {}
 
-async def get_personal_record() -> str:
-    """Get personal records."""
-    try:
-        client = _get_client()
-        records = client.safe_call("get_personal_record")
-        return format_summary("Personal Records", records)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
+        if include_goals:
+            try:
+                goals = client.safe_call("get_goals")
+                data["goals"] = goals
+            except Exception:
+                data["goals"] = None
 
+        if include_prs:
+            try:
+                prs = client.safe_call("get_personal_record")
+                data["personal_records"] = prs
+            except Exception:
+                data["personal_records"] = None
 
-async def get_earned_badges() -> str:
-    """Get earned badges."""
-    try:
-        client = _get_client()
-        badges = client.safe_call("get_earned_badges")
-        return format_summary("Earned Badges", badges)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
+        if include_race_predictions:
+            try:
+                predictions = client.safe_call("get_race_predictions")
+                data["race_predictions"] = predictions
+            except Exception:
+                data["race_predictions"] = None
 
+        # Generate insights
+        insights = []
+        available = [k for k, v in data.items() if v is not None]
+        if available:
+            insights.append(f"Available data: {', '.join(available)}")
+        else:
+            insights.append("No goals, PRs, or predictions data available")
 
-async def get_adhoc_challenges(
-    start: Annotated[int, "Start index"] = 0,
-    limit: Annotated[int, "Number of challenges to return"] = 100,
-) -> str:
-    """Get ad-hoc challenges."""
-    try:
-        client = _get_client()
-        challenges = client.safe_call("get_adhoc_challenges", start, limit)
-        return format_summary("Ad-hoc Challenges", challenges)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_available_badge_challenges(
-    start: Annotated[int, "Start index"] = 1,
-    limit: Annotated[int, "Number of challenges to return"] = 100,
-) -> str:
-    """Get available badge challenges."""
-    try:
-        client = _get_client()
-        challenges = client.safe_call("get_available_badge_challenges", start, limit)
-        return format_summary("Available Badge Challenges", challenges)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_badge_challenges(
-    start: Annotated[int, "Start index"] = 1,
-    limit: Annotated[int, "Number of challenges to return"] = 100,
-) -> str:
-    """Get all badge challenges."""
-    try:
-        client = _get_client()
-        challenges = client.safe_call("get_badge_challenges", start, limit)
-        return format_summary("Badge Challenges", challenges)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_non_completed_badge_challenges(
-    start: Annotated[int, "Start index"] = 1,
-    limit: Annotated[int, "Number of challenges to return"] = 100,
-) -> str:
-    """Get non-completed badge challenges."""
-    try:
-        client = _get_client()
-        challenges = client.safe_call("get_non_completed_badge_challenges", start, limit)
-        return format_summary("Non-Completed Badge Challenges", challenges)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_race_predictions() -> str:
-    """Get race time predictions."""
-    try:
-        client = _get_client()
-        predictions = client.safe_call("get_race_predictions")
-        return format_summary("Race Predictions", predictions)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_inprogress_virtual_challenges(
-    start_date: Annotated[str, "Start date in YYYY-MM-DD format"],
-    end_date: Annotated[str, "End date in YYYY-MM-DD format"],
-) -> str:
-    """Get in-progress virtual challenges for a date range."""
-    try:
-        client = _get_client()
-        challenges = client.safe_call("get_inprogress_virtual_challenges", start_date, end_date)
-        return format_summary(
-            f"In-Progress Virtual Challenges ({start_date} to {end_date})", challenges
+        return ResponseBuilder.build_response(
+            data=data,
+            analysis={"insights": insights} if insights else None,
+            metadata={"includes": {"goals": include_goals, "prs": include_prs, "race_predictions": include_race_predictions}},
         )
+
     except GarminAPIError as e:
-        return f"Error: {e.message}"
+        return ResponseBuilder.build_error_response(
+            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+        )
     except Exception as e:
-        return f"Unexpected error: {str(e)}"
+        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+
+
+async def query_challenges(
+    status: Annotated[str, "Challenge status: 'active', 'available', 'earned', 'all'"] = "active",
+    challenge_type: Annotated[str, "Challenge type: 'badge', 'adhoc', 'virtual', 'all'"] = "all",
+) -> str:
+    """
+    Query challenges and badges.
+
+    Filters by status (active/available/earned) and type (badge/adhoc/virtual).
+    """
+    try:
+        client = _get_client()
+
+        data = {}
+
+        # Fetch based on type
+        if challenge_type in ["badge", "all"]:
+            # Badge challenges
+            if status in ["available", "all"]:
+                try:
+                    available_badges = client.safe_call("get_available_badge_challenges")
+                    data["available_badges"] = available_badges
+                except Exception:
+                    data["available_badges"] = None
+
+            if status in ["active", "all"]:
+                try:
+                    non_completed = client.safe_call("get_non_completed_badge_challenges")
+                    data["active_badges"] = non_completed
+                except Exception:
+                    data["active_badges"] = None
+
+            if status in ["earned", "all"]:
+                try:
+                    earned = client.safe_call("get_earned_badges")
+                    data["earned_badges"] = earned
+                except Exception:
+                    data["earned_badges"] = None
+
+            # All badge challenges
+            try:
+                all_badges = client.safe_call("get_badge_challenges")
+                data["all_badge_challenges"] = all_badges
+            except Exception:
+                data["all_badge_challenges"] = None
+
+        if challenge_type in ["adhoc", "all"]:
+            try:
+                adhoc = client.safe_call("get_adhoc_challenges")
+                data["adhoc_challenges"] = adhoc
+            except Exception:
+                data["adhoc_challenges"] = None
+
+        if challenge_type in ["virtual", "all"]:
+            if status in ["active", "all"]:
+                try:
+                    virtual = client.safe_call("get_inprogress_virtual_challenges")
+                    data["active_virtual_challenges"] = virtual
+                except Exception:
+                    data["active_virtual_challenges"] = None
+
+        # Generate insights
+        insights = []
+        available_data = [k for k, v in data.items() if v is not None]
+        if available_data:
+            insights.append(f"Retrieved: {', '.join(available_data)}")
+
+            # Count insights
+            if isinstance(data.get("earned_badges"), list):
+                insights.append(f"Earned badges: {len(data['earned_badges'])}")
+            if isinstance(data.get("active_badges"), list):
+                insights.append(f"Active badge challenges: {len(data['active_badges'])}")
+        else:
+            insights.append("No challenge data available")
+
+        return ResponseBuilder.build_response(
+            data=data,
+            analysis={"insights": insights} if insights else None,
+            metadata={"status": status, "challenge_type": challenge_type},
+        )
+
+    except GarminAPIError as e:
+        return ResponseBuilder.build_error_response(
+            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+        )
+    except Exception as e:
+        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
