@@ -4,7 +4,7 @@ from typing import Annotated
 
 from ..auth import load_config, validate_credentials
 from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
-from ..formatters import format_summary
+from ..response_builder import ResponseBuilder
 
 # Global client instance
 _garmin_wrapper: GarminClientWrapper | None = None
@@ -31,62 +31,81 @@ def _get_client() -> GarminClientWrapper:
     return _garmin_wrapper
 
 
-async def get_workouts() -> str:
-    """Get all workouts."""
+async def manage_workouts(
+    action: Annotated[str, "Action: 'list', 'get', 'download', 'upload'"],
+    workout_id: Annotated[int | None, "Workout ID (for get/download actions)"] = None,
+    workout_data: Annotated[str | None, "Workout data (for upload action)"] = None,
+) -> str:
+    """
+    Manage structured workouts.
+
+    Actions:
+    - list: Get all workouts
+    - get: Get specific workout by ID
+    - download: Download workout file
+    - upload: Upload a new workout
+    """
     try:
         client = _get_client()
-        workouts = client.safe_call("get_workouts")
-        return format_summary("Workouts", workouts)
+
+        if action == "list":
+            workouts = client.safe_call("get_workouts")
+            return ResponseBuilder.build_response(
+                data={"workouts": workouts, "count": len(workouts) if isinstance(workouts, list) else 0},
+                metadata={"action": "list"},
+            )
+
+        elif action == "get":
+            if workout_id is None:
+                return ResponseBuilder.build_error_response(
+                    "Workout ID required for get action",
+                    "invalid_parameters",
+                    ["Provide workout_id parameter"],
+                )
+
+            workout = client.safe_call("get_workout", workout_id)
+            return ResponseBuilder.build_response(
+                data={"workout": workout},
+                metadata={"action": "get", "workout_id": workout_id},
+            )
+
+        elif action == "download":
+            if workout_id is None:
+                return ResponseBuilder.build_error_response(
+                    "Workout ID required for download action",
+                    "invalid_parameters",
+                    ["Provide workout_id parameter"],
+                )
+
+            download_info = client.safe_call("download_workout", workout_id)
+            return ResponseBuilder.build_response(
+                data={"download_info": download_info},
+                metadata={"action": "download", "workout_id": workout_id},
+            )
+
+        elif action == "upload":
+            if not workout_data:
+                return ResponseBuilder.build_error_response(
+                    "Workout data required for upload action",
+                    "invalid_parameters",
+                    ["Provide workout_data parameter"],
+                )
+
+            result = client.safe_call("upload_workout", workout_data)
+            return ResponseBuilder.build_response(
+                data={"result": result},
+                analysis={"insights": ["Workout uploaded successfully"]},
+                metadata={"action": "upload"},
+            )
+
+        else:
+            return ResponseBuilder.build_error_response(
+                f"Invalid action: {action}",
+                "invalid_parameters",
+                ["Valid actions: 'list', 'get', 'download', 'upload'"],
+            )
+
     except GarminAPIError as e:
-        return f"Error: {e.message}"
+        return ResponseBuilder.build_error_response(e.message, "garmin_api_error")
     except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_workout_by_id(
-    workout_id: Annotated[int, "Workout ID"],
-) -> str:
-    """Get detailed information about a specific workout."""
-    try:
-        client = _get_client()
-        workout = client.safe_call("get_workout", workout_id)
-        return format_summary(f"Workout {workout_id}", workout)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def download_workout(
-    workout_id: Annotated[int, "Workout ID"],
-) -> str:
-    """Download workout data (returns information about FIT data availability)."""
-    try:
-        _get_client()
-        # Note: The actual garminconnect library may not support direct FIT download
-        # This is a placeholder matching the original implementation
-        return (
-            f"Workout {workout_id} information:\n\n"
-            "FIT data for workouts is available through the Garmin Connect web interface. "
-            "This tool provides workout metadata but does not support direct FIT file download. "
-            "Use get_workout_by_id to retrieve workout details."
-        )
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def upload_workout(
-    workout_json: Annotated[str, "Workout JSON data"],
-) -> str:
-    """Upload a workout to Garmin Connect."""
-    try:
-        _get_client()
-        # This would require parsing the JSON and calling the appropriate Garmin API
-        # Implementation depends on the garminconnect library capabilities
-        return "Workout upload functionality is not yet implemented in the garminconnect library."
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
+        return ResponseBuilder.build_error_response(str(e), "unexpected_error")

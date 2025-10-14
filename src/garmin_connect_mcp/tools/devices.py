@@ -1,11 +1,10 @@
-"""Device-related tools for Garmin Connect MCP server."""
+"""Device management tools for Garmin Connect MCP server."""
 
 from typing import Annotated
 
 from ..auth import load_config, validate_credentials
-from ..cache import cached_call
 from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
-from ..formatters import format_summary
+from ..response_builder import ResponseBuilder
 
 # Global client instance
 _garmin_wrapper: GarminClientWrapper | None = None
@@ -32,80 +31,89 @@ def _get_client() -> GarminClientWrapper:
     return _garmin_wrapper
 
 
-@cached_call("devices", ttl_seconds=3600)  # Cache for 1 hour
-async def get_devices() -> str:
-    """Get all registered Garmin devices."""
-    try:
-        client = _get_client()
-        devices = client.safe_call("get_devices")
-        return format_summary("Registered Devices", devices)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_device_last_used() -> str:
-    """Get the last used device."""
-    try:
-        client = _get_client()
-        device = client.safe_call("get_device_last_used")
-        return format_summary("Last Used Device", device)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_device_settings(
-    device_id: Annotated[int, "Device ID"],
+async def query_devices(
+    device_id: Annotated[int | None, "Specific device ID"] = None,
+    include_last_used: Annotated[bool, "Include last used device info"] = True,
+    include_primary: Annotated[bool, "Include primary training device"] = True,
+    include_settings: Annotated[bool, "Include device settings"] = False,
+    include_solar_data: Annotated[bool, "Include solar charging data"] = False,
+    include_alarms: Annotated[bool, "Include device alarms"] = False,
 ) -> str:
-    """Get settings for a specific device."""
+    """
+    Query Garmin devices.
+
+    Get comprehensive device information including last used device,
+    primary training device, settings, solar data, and alarms.
+    """
     try:
         client = _get_client()
-        settings = client.safe_call("get_device_settings", device_id)
-        return format_summary(f"Settings for Device {device_id}", settings)
+
+        data = {}
+
+        # Get all devices
+        try:
+            devices = client.safe_call("get_devices")
+            data["devices"] = devices
+        except Exception:
+            data["devices"] = None
+
+        # Last used device
+        if include_last_used:
+            try:
+                last_used = client.safe_call("get_device_last_used")
+                data["last_used"] = last_used
+            except Exception:
+                data["last_used"] = None
+
+        # Primary training device
+        if include_primary:
+            try:
+                primary = client.safe_call("get_primary_training_device")
+                data["primary_device"] = primary
+            except Exception:
+                data["primary_device"] = None
+
+        # Device-specific details
+        if device_id is not None:
+            if include_settings:
+                try:
+                    settings = client.safe_call("get_device_settings", device_id)
+                    data["device_settings"] = settings
+                except Exception:
+                    data["device_settings"] = None
+
+            if include_solar_data:
+                try:
+                    solar = client.safe_call("get_device_solar_data", device_id)
+                    data["solar_data"] = solar
+                except Exception:
+                    data["solar_data"] = None
+
+            if include_alarms:
+                try:
+                    alarms = client.safe_call("get_device_alarms", device_id)
+                    data["alarms"] = alarms
+                except Exception:
+                    data["alarms"] = None
+
+        # Generate insights
+        insights = []
+        if isinstance(data.get("devices"), list):
+            insights.append(f"Total devices: {len(data['devices'])}")
+        if data.get("primary_device"):
+            insights.append("Primary training device identified")
+        if data.get("solar_data"):
+            insights.append("Solar charging data available")
+
+        return ResponseBuilder.build_response(
+            data=data,
+            analysis={"insights": insights} if insights else None,
+            metadata={"device_id": device_id},
+        )
+
     except GarminAPIError as e:
-        return f"Error: {e.message}"
+        return ResponseBuilder.build_error_response(
+            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+        )
     except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_primary_training_device() -> str:
-    """Get the primary training device."""
-    try:
-        client = _get_client()
-        device = client.safe_call("get_primary_training_device")
-        return format_summary("Primary Training Device", device)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-async def get_device_solar_data(
-    device_id: Annotated[int, "Device ID"],
-    date: Annotated[str, "Date in YYYY-MM-DD format"],
-) -> str:
-    """Get solar charging data for a specific device and date."""
-    try:
-        client = _get_client()
-        solar_data = client.safe_call("get_device_solar", device_id, date)
-        return format_summary(f"Solar Data for Device {device_id} on {date}", solar_data)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
-
-
-@cached_call("devices", ttl_seconds=1800)  # Cache for 30 minutes
-async def get_device_alarms() -> str:
-    """Get alarms for all devices."""
-    try:
-        client = _get_client()
-        alarms = client.safe_call("get_device_alarms")
-        return format_summary("Device Alarms", alarms)
-    except GarminAPIError as e:
-        return f"Error: {e.message}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
+        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
