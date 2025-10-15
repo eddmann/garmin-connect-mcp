@@ -1,6 +1,9 @@
 """Type definitions for Garmin Connect API data structures."""
 
-from typing import TypedDict
+from typing import Literal, TypedDict
+
+# Unit system type for consistent formatting across tools
+UnitSystem = Literal["metric", "imperial"]
 
 
 class SleepScoreComponent(TypedDict, total=False):

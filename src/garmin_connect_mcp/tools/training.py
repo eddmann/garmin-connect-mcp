@@ -4,8 +4,9 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Annotated, Any
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
 from ..time_utils import (
     format_date_for_api,
@@ -13,30 +14,7 @@ from ..time_utils import (
     get_week_ranges,
     parse_time_range,
 )
-
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
+from ..types import UnitSystem
 
 
 async def analyze_training_period(
@@ -46,7 +24,8 @@ async def analyze_training_period(
     activity_type: Annotated[
         str, "Filter by activity type (e.g., 'running', 'cycling'). Empty for all."
     ] = "",
-    unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
+    unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
+    ctx: Context | None = None,
 ) -> str:
     """
     Analyze training over a specified period with comprehensive insights.
@@ -59,8 +38,9 @@ async def analyze_training_period(
 
     Example periods: "30d", "this-month", "2024-01-01:2024-01-31"
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Parse period
         start_date, end_date = parse_time_range(period)
@@ -245,11 +225,11 @@ async def analyze_training_period(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def get_performance_metrics(
@@ -261,6 +241,7 @@ async def get_performance_metrics(
     include_endurance_score: Annotated[bool, "Include endurance score"] = True,
     include_hrv: Annotated[bool, "Include heart rate variability"] = True,
     include_fitness_age: Annotated[bool, "Include fitness age calculation"] = True,
+    ctx: Context | None = None,
 ) -> str:
     """
     Get comprehensive performance metrics.
@@ -270,8 +251,9 @@ async def get_performance_metrics(
 
     Supports both single-date and date-range queries.
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Determine query type
         if date:
@@ -356,11 +338,11 @@ async def get_performance_metrics(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def get_training_effect(
@@ -368,6 +350,7 @@ async def get_training_effect(
     start_date: Annotated[str | None, "Start date (YYYY-MM-DD) for progress summary"] = None,
     end_date: Annotated[str | None, "End date (YYYY-MM-DD) for progress summary"] = None,
     metric: Annotated[str, "Metric to track for progress summary"] = "distance",
+    ctx: Context | None = None,
 ) -> str:
     """
     Get training effect and progress summary.
@@ -376,8 +359,9 @@ async def get_training_effect(
     1. Training effect for specific activity (provide activity_id)
     2. Progress summary over date range (provide start_date, end_date, metric)
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Pattern 1: Training effect for activity
         if activity_id is not None:
@@ -412,8 +396,8 @@ async def get_training_effect(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")

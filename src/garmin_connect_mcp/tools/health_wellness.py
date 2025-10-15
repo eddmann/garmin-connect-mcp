@@ -3,35 +3,13 @@
 from datetime import timedelta
 from typing import Annotated, Any
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError
 from ..pagination import build_pagination_info, decode_cursor
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
-
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
+from ..types import UnitSystem
 
 
 async def query_health_summary(
@@ -48,7 +26,8 @@ async def query_health_summary(
     include_body_battery: Annotated[bool, "Include Body Battery data"] = True,
     include_training_readiness: Annotated[bool, "Include training readiness"] = True,
     include_training_status: Annotated[bool, "Include training status"] = True,
-    unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
+    unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
+    ctx: Context | None = None,
 ) -> str:
     """
     Get comprehensive daily health snapshot with pagination support.
@@ -81,8 +60,9 @@ async def query_health_summary(
         "metadata": {...}
     }
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Parse cursor for pagination
         current_page = 1
@@ -236,17 +216,18 @@ async def query_health_summary(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def query_sleep_data(
     date: Annotated[str | None, "Specific date ('today', 'yesterday', or YYYY-MM-DD)"] = None,
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
+    ctx: Context | None = None,
 ) -> str:
     """
     Get sleep data and analysis.
@@ -256,8 +237,9 @@ async def query_sleep_data(
 
     Supports single date or date range queries.
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Determine date(s) to query
         if date:
@@ -341,11 +323,11 @@ async def query_sleep_data(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def query_heart_rate_data(
@@ -353,6 +335,7 @@ async def query_heart_rate_data(
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
     include_resting: Annotated[bool, "Include resting heart rate"] = True,
+    ctx: Context | None = None,
 ) -> str:
     """
     Get heart rate data.
@@ -360,8 +343,9 @@ async def query_heart_rate_data(
     Retrieves heart rate data including resting HR, average HR, min/max values.
     Supports single date or date range queries.
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Determine date(s) to query
         if date:
@@ -433,11 +417,11 @@ async def query_heart_rate_data(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def query_activity_metrics(
@@ -448,7 +432,8 @@ async def query_activity_metrics(
         str,
         "Comma-separated metrics: steps,stress,respiration,spo2,floors,hydration,blood_pressure,body_composition",
     ] = "steps,stress",
-    unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
+    unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
+    ctx: Context | None = None,
 ) -> str:
     """
     Get activity metrics (steps, stress, etc.).
@@ -459,8 +444,9 @@ async def query_activity_metrics(
     Select specific metrics to retrieve using the metrics parameter.
     Default: steps and stress.
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Parse requested metrics
         requested_metrics = [m.strip().lower() for m in metrics.split(",")]
@@ -600,8 +586,8 @@ async def query_activity_metrics(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")

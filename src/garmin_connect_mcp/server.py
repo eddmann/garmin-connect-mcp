@@ -11,6 +11,11 @@ load_dotenv()
 # Initialize FastMCP server
 mcp = FastMCP("Garmin Connect")
 
+# Register middleware
+from .middleware import ConfigMiddleware
+
+mcp.add_middleware(ConfigMiddleware())
+
 # Import and register all tools
 from .tools.activities import (
     get_activity_details,
@@ -97,30 +102,79 @@ mcp.tool()(query_womens_health)
 @mcp.resource("garmin://athlete/profile")
 async def athlete_profile_resource() -> str:
     """Provide athlete profile with stats and zones for context-aware clients."""
-    return await get_user_profile(
-        include_stats=True,
-        include_prs=True,
-        include_devices=True,
+    # Resources don't go through middleware, so we initialize client directly
+    from .auth import load_config
+    from .client import GarminClientWrapper, init_garmin_client
+    from .response_builder import ResponseBuilder
+
+    config = load_config()
+    client = init_garmin_client(config)
+    if client is None:
+        return ResponseBuilder.build_error_response("Failed to initialize Garmin client")
+
+    wrapper = GarminClientWrapper(client)
+
+    # Get basic profile
+    full_name = wrapper.safe_call("get_full_name")
+    unit_system = wrapper.safe_call("get_unit_system")
+
+    # Get stats
+    user_summary = wrapper.safe_call("get_user_summary")
+    daily_stats = wrapper.safe_call("get_stats", "today")
+
+    return ResponseBuilder.build_response(
+        data={
+            "profile": {"name": full_name, "unit_system": unit_system},
+            "summary": user_summary,
+            "stats": daily_stats,
+        },
+        metadata={"resource": "athlete_profile"},
     )
 
 
 @mcp.resource("garmin://training/readiness")
 async def training_readiness_resource() -> str:
     """Provide current training readiness, Body Battery, and recovery status."""
-    return await query_health_summary(
-        date="today",
-        include_body_battery=True,
-        include_training_readiness=True,
-        include_training_status=True,
+    from .auth import load_config
+    from .client import GarminClientWrapper, init_garmin_client
+    from .response_builder import ResponseBuilder
+
+    config = load_config()
+    client = init_garmin_client(config)
+    if client is None:
+        return ResponseBuilder.build_error_response("Failed to initialize Garmin client")
+
+    wrapper = GarminClientWrapper(client)
+
+    # Get today's health data
+    daily_stats = wrapper.safe_call("get_stats", "today")
+
+    return ResponseBuilder.build_response(
+        data={"readiness": daily_stats},
+        metadata={"resource": "training_readiness", "date": "today"},
     )
 
 
 @mcp.resource("garmin://health/today")
 async def health_today_resource() -> str:
     """Provide today's health snapshot (steps, sleep, stress, HR)."""
-    return await query_activity_metrics(
-        date="today",
-        metrics="steps,stress,heart_rate,body_battery",
+    from .auth import load_config
+    from .client import GarminClientWrapper, init_garmin_client
+    from .response_builder import ResponseBuilder
+
+    config = load_config()
+    client = init_garmin_client(config)
+    if client is None:
+        return ResponseBuilder.build_error_response("Failed to initialize Garmin client")
+
+    wrapper = GarminClientWrapper(client)
+
+    # Get today's health data
+    daily_stats = wrapper.safe_call("get_stats", "today")
+
+    return ResponseBuilder.build_response(
+        data={"health": daily_stats},
+        metadata={"resource": "health_today", "date": "today"},
     )
 
 

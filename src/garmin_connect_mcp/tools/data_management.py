@@ -3,40 +3,15 @@
 import json
 from typing import Annotated
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
 
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
-
 
 async def log_health_data(
-    data_type: Annotated[
-        str, "Data type: 'body_composition', 'blood_pressure', 'hydration'"
-    ],
+    data_type: Annotated[str, "Data type: 'body_composition', 'blood_pressure', 'hydration'"],
     data: Annotated[
         str,
         "JSON object with the health data fields. "
@@ -45,6 +20,7 @@ async def log_health_data(
         "For hydration: {'volume_ml': 500}",
     ],
     date: Annotated[str | None, "Date (YYYY-MM-DD, defaults to today)"] = None,
+    ctx: Context | None = None,
 ) -> str:
     """
     Log health data entries.
@@ -56,8 +32,9 @@ async def log_health_data(
 
     All data should be provided as a JSON string.
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         date_str = (
             parse_date_string(date).strftime("%Y-%m-%d")
@@ -137,6 +114,6 @@ async def log_health_data(
             )
 
     except GarminAPIError as e:
-        return ResponseBuilder.build_error_response(e.message, "garmin_api_error")
+        return ResponseBuilder.build_error_response(e.message, "api_error")
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
