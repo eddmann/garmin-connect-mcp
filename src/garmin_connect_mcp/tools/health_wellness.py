@@ -43,7 +43,7 @@ async def query_health_summary(
     ] = None,
     limit: Annotated[
         int | None,
-        "Maximum days per page (1-90). Default: 30. Use cursor for large date ranges.",
+        "Maximum days per page (1-30). Default: 7. Use cursor for large date ranges.",
     ] = None,
     include_body_battery: Annotated[bool, "Include Body Battery data"] = True,
     include_training_readiness: Annotated[bool, "Include training readiness"] = True,
@@ -98,12 +98,12 @@ async def query_health_summary(
 
         # Set default limit
         if limit is None:
-            limit = 30
+            limit = 7
 
         # Validate limit
-        if limit < 1 or limit > 90:
+        if limit < 1 or limit > 30:
             return ResponseBuilder.build_error_response(
-                f"Invalid limit: {limit}. Must be between 1 and 90.",
+                f"Invalid limit: {limit}. Must be between 1 and 30.",
                 error_type="validation_error",
             )
 

@@ -276,11 +276,12 @@ if data.get("pagination", {}).get("has_more"):
 - **Stateless cursors**: Encode page number + filters (Base64 JSON)
 - **Auto-detection**: Fetch limit+1 items to detect more pages
 - **Preserved filters**: Cursor maintains query parameters
-- **Default limits**: 20 for activities, 30 for health data
+- **Compact JSON**: No indentation to minimize response size
+- **Default limits**: 10 for activities, 7 for health data
 
 **Tools with Pagination:**
-- `query_activities`: Activities by date range or general queries (limit: 1-100, default 20)
-- `query_health_summary`: Health data for date ranges (limit: 1-90, default 30)
+- `query_activities`: Activities by date range or general queries (limit: 1-50, default 10)
+- `query_health_summary`: Health data for date ranges (limit: 1-30, default 7)
 
 ### Structured Response Pattern
 
