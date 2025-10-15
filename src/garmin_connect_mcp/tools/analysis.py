@@ -2,38 +2,17 @@
 
 from typing import Annotated, Any
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
-
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
+from ..types import UnitSystem
 
 
 async def compare_activities(
     activity_ids: Annotated[str, "Comma-separated activity IDs (2-5 activities)"],
-    unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
+    unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
+    ctx: Context | None = None,
 ) -> str:
     """
     Compare multiple activities side-by-side.
@@ -45,8 +24,9 @@ async def compare_activities(
 
     Example: activity_ids="12345678,12345679,12345680"
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Parse activity IDs
         ids = [int(id_str.strip()) for id_str in activity_ids.split(",")]
@@ -264,11 +244,11 @@ async def compare_activities(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def find_similar_activities(
@@ -277,7 +257,8 @@ async def find_similar_activities(
         str, "Similarity criteria: 'type', 'distance', 'elevation', 'duration' (comma-separated)"
     ] = "type,distance",
     limit: Annotated[int, "Maximum number of similar activities to return"] = 10,
-    unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
+    unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
+    ctx: Context | None = None,
 ) -> str:
     """
     Find activities similar to a reference activity.
@@ -292,8 +273,9 @@ async def find_similar_activities(
 
     Example: criteria="type,distance"
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Parse criteria
         criteria_list = [c.strip().lower() for c in criteria.split(",")]
@@ -472,8 +454,8 @@ async def find_similar_activities(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")

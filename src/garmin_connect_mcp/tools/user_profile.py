@@ -2,39 +2,17 @@
 
 from datetime import datetime
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
-
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
 
 
 async def get_user_profile(
     include_stats: bool = True,
     include_prs: bool = True,
     include_devices: bool = True,
+    ctx: Context | None = None,
 ) -> str:
     """
     Get comprehensive user profile with optional stats, personal records, and devices.
@@ -47,8 +25,9 @@ async def get_user_profile(
     Returns:
         Structured JSON with profile data, analysis, and metadata
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Get basic profile info
         full_name = client.safe_call("get_full_name")
@@ -133,10 +112,10 @@ async def get_user_profile(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             message=e.message,
-            error_type="GarminAPIError",
+            error_type="api_error",
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(
             message=f"Unexpected error: {str(e)}",
-            error_type="UnexpectedError",
+            error_type="internal_error",
         )

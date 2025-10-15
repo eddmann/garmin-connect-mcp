@@ -2,36 +2,13 @@
 
 from typing import Annotated, Any
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError, GarminClientWrapper
 from ..pagination import build_pagination_info, decode_cursor
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
-
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file, "
-                "or run 'garmin-connect-mcp-auth' to set up authentication."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
+from ..types import UnitSystem
 
 
 async def _query_activities_paginated(
@@ -41,7 +18,7 @@ async def _query_activities_paginated(
     activity_type: str,
     cursor: str | None,
     limit: int,
-    unit: str,
+    unit: UnitSystem,
 ) -> str:
     """Query activities by date range with cursor-based pagination."""
     # Parse cursor to get current page
@@ -100,6 +77,7 @@ async def _query_activities_paginated(
         return ResponseBuilder.build_response(
             data={"activities": [], "count": 0},
             metadata={
+                "query_type": "activity_list",
                 "start_date": start_date,
                 "end_date": end_date,
                 "activity_type": activity_type or "all",
@@ -114,9 +92,13 @@ async def _query_activities_paginated(
     # Format activities
     formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
 
+    # Aggregate metrics
+    aggregated = ResponseBuilder.aggregate_activities(activities, unit)
+
     return ResponseBuilder.build_response(
-        data={"activities": formatted_activities, "count": len(activities)},
+        data={"activities": formatted_activities, "aggregated": aggregated},
         metadata={
+            "query_type": "activity_list",
             "start_date": start_date,
             "end_date": end_date,
             "activity_type": activity_type or "all",
@@ -131,7 +113,7 @@ async def _query_activities_general_paginated(
     activity_type: str,
     cursor: str | None,
     limit: int,
-    unit: str,
+    unit: UnitSystem,
 ) -> str:
     """Query activities with general pagination (no date filter)."""
     # Parse cursor to get current page
@@ -182,7 +164,11 @@ async def _query_activities_general_paginated(
         type_msg = f" of type '{activity_type}'" if activity_type else ""
         return ResponseBuilder.build_response(
             data={"activities": [], "count": 0},
-            metadata={"activity_type": activity_type or "all", "unit": unit},
+            metadata={
+                "query_type": "activity_list",
+                "activity_type": activity_type or "all",
+                "unit": unit,
+            },
             pagination=pagination,
             analysis={"insights": [f"No activities found{type_msg}"]},
         )
@@ -190,9 +176,16 @@ async def _query_activities_general_paginated(
     # Format activities
     formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
 
+    # Aggregate metrics
+    aggregated = ResponseBuilder.aggregate_activities(activities, unit)
+
     return ResponseBuilder.build_response(
-        data={"activities": formatted_activities, "count": len(activities)},
-        metadata={"activity_type": activity_type or "all", "unit": unit},
+        data={"activities": formatted_activities, "aggregated": aggregated},
+        metadata={
+            "query_type": "activity_list",
+            "activity_type": activity_type or "all",
+            "unit": unit,
+        },
         pagination=pagination,
     )
 
@@ -211,7 +204,8 @@ async def query_activities(
         "Use pagination cursor for large datasets.",
     ] = None,
     activity_type: Annotated[str, "Activity type filter (e.g., 'running', 'cycling')"] = "",
-    unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
+    unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
+    ctx: Context | None = None,
 ) -> str:
     """
     Query activities with flexible parameters and pagination support.
@@ -248,8 +242,9 @@ async def query_activities(
         "metadata": {...}
     }
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Pattern 1: Specific activity by ID
         if activity_id is not None:
@@ -270,7 +265,11 @@ async def query_activities(
 
             return ResponseBuilder.build_response(
                 data={"activity": formatted_activity},
-                metadata={"activity_id": activity_id, "unit": unit},
+                metadata={
+                    "query_type": "single_activity",
+                    "activity_id": activity_id,
+                    "unit": unit,
+                },
             )
 
         # Pattern 2: Date range query (with pagination)
@@ -296,7 +295,7 @@ async def query_activities(
             if not activities:
                 return ResponseBuilder.build_response(
                     data={"activities": [], "count": 0},
-                    metadata={"date": date_str},
+                    metadata={"query_type": "activity_list", "date": date_str},
                     analysis={"insights": [f"No activities found for {date_str}"]},
                 )
 
@@ -304,9 +303,12 @@ async def query_activities(
                 ResponseBuilder.format_activity(act, unit) for act in activities
             ]
 
+            # Aggregate metrics
+            aggregated = ResponseBuilder.aggregate_activities(activities, unit)
+
             return ResponseBuilder.build_response(
-                data={"activities": formatted_activities, "count": len(activities)},
-                metadata={"date": date_str, "unit": unit},
+                data={"activities": formatted_activities, "aggregated": aggregated},
+                metadata={"query_type": "activity_list", "date": date_str, "unit": unit},
             )
 
         # Pattern 4: Pagination query (general pagination using Garmin's start/limit API)
@@ -339,11 +341,11 @@ async def query_activities(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def get_activity_details(
@@ -353,7 +355,8 @@ async def get_activity_details(
     include_hr_zones: Annotated[bool, "Include heart rate zone data"] = True,
     include_gear: Annotated[bool, "Include gear information"] = True,
     include_exercise_sets: Annotated[bool, "Include exercise sets (for strength training)"] = False,
-    unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
+    unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
+    ctx: Context | None = None,
 ) -> str:
     """
     Get comprehensive details for a specific activity.
@@ -364,8 +367,9 @@ async def get_activity_details(
     By default, includes splits, weather, HR zones, and gear. Exercise sets
     are only included when explicitly requested (useful for strength training).
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Start with base activity data
         activity = client.safe_call("get_activity", activity_id)
@@ -435,6 +439,7 @@ async def get_activity_details(
             data=details,
             analysis={"insights": insights} if insights else None,
             metadata={
+                "query_type": "activity_details",
                 "activity_id": activity_id,
                 "unit": unit,
                 "includes": {
@@ -450,15 +455,16 @@ async def get_activity_details(
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def get_activity_social(
     activity_id: Annotated[int, "Activity ID to get social details for"],
+    ctx: Context | None = None,
 ) -> str:
     """
     Get social details for an activity (likes, comments, kudos).
@@ -469,8 +475,9 @@ async def get_activity_social(
     Returns:
         Structured JSON with social data, analysis, and metadata
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Get activity social details
         social = client.safe_call("get_activity_social", activity_id)
@@ -507,14 +514,14 @@ async def get_activity_social(
         return ResponseBuilder.build_response(
             data={"activity_id": activity_id, "social": social},
             analysis={"insights": insights} if insights else None,
-            metadata={"activity_id": activity_id},
+            metadata={"query_type": "activity_social", "activity_id": activity_id},
         )
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
             e.message,
-            "garmin_api_error",
+            "api_error",
             ["Check your Garmin Connect credentials", "Verify the activity ID is correct"],
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")

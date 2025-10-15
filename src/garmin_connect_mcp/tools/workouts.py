@@ -2,39 +2,17 @@
 
 from typing import Annotated
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
-
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
 
 
 async def manage_workouts(
     action: Annotated[str, "Action: 'list', 'get', 'download', 'upload'"],
     workout_id: Annotated[int | None, "Workout ID (for get/download actions)"] = None,
     workout_data: Annotated[str | None, "Workout data (for upload action)"] = None,
+    ctx: Context | None = None,
 ) -> str:
     """
     Manage structured workouts.
@@ -45,8 +23,9 @@ async def manage_workouts(
     - download: Download workout file
     - upload: Upload a new workout
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         if action == "list":
             workouts = client.safe_call("get_workouts")
@@ -109,6 +88,6 @@ async def manage_workouts(
             )
 
     except GarminAPIError as e:
-        return ResponseBuilder.build_error_response(e.message, "garmin_api_error")
+        return ResponseBuilder.build_error_response(e.message, "api_error")
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")

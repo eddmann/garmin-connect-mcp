@@ -2,10 +2,21 @@
 
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from .pagination import PaginationInfo
-from .types import JSONSerializable
+from .types import JSONSerializable, UnitSystem
+
+
+def _convert_datetimes(obj: Any) -> Any:  # type: ignore[misc]
+    """Recursively convert datetime objects to ISO strings."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {str(k): _convert_datetimes(v) for k, v in obj.items()}  # type: ignore[misc]
+    elif isinstance(obj, list):
+        return [_convert_datetimes(item) for item in obj]  # type: ignore[misc]
+    return obj
 
 
 class ResponseBuilder:
@@ -30,24 +41,28 @@ class ResponseBuilder:
         Returns:
             JSON string with structured response
         """
-        response: dict[str, Any] = {"data": data}
-
+        # Convert datetime objects to ISO strings
+        converted_data = cast(JSONSerializable, _convert_datetimes(data))
+        converted_analysis: dict[str, Any] | None = None
         if analysis:
-            response["analysis"] = analysis
+            converted_analysis = cast(dict[str, Any], _convert_datetimes(analysis))
+
+        response: dict[str, Any] = {"data": converted_data}
+
+        if converted_analysis:
+            response["analysis"] = converted_analysis
 
         if pagination:
             response["pagination"] = pagination
 
-        if metadata:
-            response["metadata"] = metadata
+        # Build metadata with timestamp
+        meta = metadata or {}
+        converted_meta = cast(dict[str, Any], _convert_datetimes(meta))
+        converted_meta["fetched_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-        # Add default metadata
-        if "metadata" not in response:
-            response["metadata"] = {}
+        response["metadata"] = converted_meta
 
-        response["metadata"]["fetched_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-
-        return json.dumps(response, default=str, separators=(",", ":"))
+        return json.dumps(response, separators=(",", ":"))
 
     @staticmethod
     def build_error_response(
@@ -78,7 +93,9 @@ class ResponseBuilder:
         return json.dumps(response, separators=(",", ":"))
 
     @staticmethod
-    def format_activity(activity_dict: dict[str, Any], unit: str = "metric") -> dict[str, Any]:
+    def format_activity(
+        activity_dict: dict[str, Any], unit: UnitSystem = "metric"
+    ) -> dict[str, Any]:
         """
         Format an activity with rich formatting (raw + human-readable).
 
@@ -132,10 +149,45 @@ class ResponseBuilder:
                     "formatted": ResponseBuilder._format_datetime(activity_dict[date_field]),
                 }
 
+        # Format heart rate
+        if "averageHR" in activity_dict and activity_dict["averageHR"] is not None:
+            formatted["heart_rate"] = {"avg_bpm": round(activity_dict["averageHR"])}
+
+        if "maxHR" in activity_dict and activity_dict["maxHR"] is not None:
+            if "heart_rate" not in formatted:
+                formatted["heart_rate"] = {}
+            formatted["heart_rate"]["max_bpm"] = round(activity_dict["maxHR"])
+
+        # Format power
+        if "avgPower" in activity_dict and activity_dict["avgPower"] is not None:
+            formatted["power"] = {"avg_watts": round(activity_dict["avgPower"])}
+
+        if "maxPower" in activity_dict and activity_dict["maxPower"] is not None:
+            if "power" not in formatted:
+                formatted["power"] = {}
+            formatted["power"]["max_watts"] = round(activity_dict["maxPower"])
+
+        # Format cadence
+        if "avgRunCadence" in activity_dict and activity_dict["avgRunCadence"] is not None:
+            formatted["cadence"] = {"avg_spm": round(activity_dict["avgRunCadence"])}
+        elif (
+            "averageBikingCadenceInRevPerMinute" in activity_dict
+            and activity_dict["averageBikingCadenceInRevPerMinute"] is not None
+        ):
+            formatted["cadence"] = {
+                "avg_rpm": round(activity_dict["averageBikingCadenceInRevPerMinute"])
+            }
+
+        # Format calories
+        if "calories" in activity_dict and activity_dict["calories"] is not None:
+            formatted["calories"] = activity_dict["calories"]
+
         return formatted
 
     @staticmethod
-    def format_health_metric(metric_dict: dict[str, Any], unit: str = "metric") -> dict[str, Any]:
+    def format_health_metric(
+        metric_dict: dict[str, Any], unit: UnitSystem = "metric"
+    ) -> dict[str, Any]:
         """
         Format a health metric with rich formatting.
 
@@ -176,7 +228,7 @@ class ResponseBuilder:
 
     # Helper formatting methods
     @staticmethod
-    def _format_distance(meters: float, unit: str = "metric") -> str:
+    def _format_distance(meters: float, unit: UnitSystem = "metric") -> str:
         """Format distance with units."""
         if unit == "imperial":
             miles = meters / 1609.34
@@ -200,7 +252,7 @@ class ResponseBuilder:
             return f"{secs}s"
 
     @staticmethod
-    def _format_elevation(meters: float, unit: str = "metric") -> str:
+    def _format_elevation(meters: float, unit: UnitSystem = "metric") -> str:
         """Format elevation with units."""
         if unit == "imperial":
             feet = meters * 3.28084
@@ -209,7 +261,7 @@ class ResponseBuilder:
             return f"{meters:.0f} m"
 
     @staticmethod
-    def _format_speed(mps: float, unit: str = "metric") -> str:
+    def _format_speed(mps: float, unit: UnitSystem = "metric") -> str:
         """Format speed from m/s."""
         if unit == "imperial":
             mph = mps * 2.23694
@@ -219,7 +271,7 @@ class ResponseBuilder:
             return f"{kmh:.2f} km/h"
 
     @staticmethod
-    def _format_pace(mps: float, unit: str = "metric") -> str:
+    def _format_pace(mps: float, unit: UnitSystem = "metric") -> str:
         """Format pace from m/s."""
         if mps == 0:
             return "N/A"
@@ -238,7 +290,7 @@ class ResponseBuilder:
             return f"{minutes}:{seconds:02d} /km"
 
     @staticmethod
-    def _format_weight(grams: float, unit: str = "metric") -> str:
+    def _format_weight(grams: float, unit: UnitSystem = "metric") -> str:
         """Format weight with units."""
         if unit == "imperial":
             lbs = grams / 453.592
@@ -264,3 +316,62 @@ class ResponseBuilder:
             return date_str.strftime("%Y-%m-%d %H:%M:%S")
 
         return str(date_str)
+
+    @staticmethod
+    def aggregate_activities(
+        activities: list[dict[str, Any]], unit: UnitSystem = "metric"
+    ) -> dict[str, Any]:
+        """Aggregate metrics across multiple activities.
+
+        Args:
+            activities: List of activity data dictionaries
+            unit: Unit preference for formatting
+
+        Returns:
+            Dict with aggregated metrics (totals, averages, counts)
+        """
+        if not activities:
+            return {}
+
+        total_distance = sum(a.get("distance", 0) for a in activities)
+        total_time = sum(a.get("duration", 0) for a in activities)
+        total_elevation = sum(a.get("elevationGain", 0) for a in activities)
+        total_calories = sum(a.get("calories", 0) for a in activities)
+
+        aggregated: dict[str, Any] = {
+            "count": len(activities),
+            "total_distance": {
+                "meters": total_distance,
+                "formatted": ResponseBuilder._format_distance(total_distance, unit),
+            },
+            "total_time": {
+                "seconds": total_time,
+                "formatted": ResponseBuilder._format_duration(total_time),
+            },
+            "total_elevation": {
+                "meters": total_elevation,
+                "formatted": ResponseBuilder._format_elevation(total_elevation, unit),
+            },
+        }
+
+        if total_calories > 0:
+            aggregated["total_calories"] = total_calories
+
+        # Average distance per activity
+        if len(activities) > 0:
+            avg_distance = total_distance / len(activities)
+            aggregated["avg_distance_per_activity"] = {
+                "meters": avg_distance,
+                "formatted": ResponseBuilder._format_distance(avg_distance, unit),
+            }
+
+        # Average pace/speed (if applicable)
+        if total_time > 0 and total_distance > 0:
+            avg_speed = total_distance / total_time
+            aggregated["avg_speed"] = {
+                "mps": avg_speed,
+                "formatted_speed": ResponseBuilder._format_speed(avg_speed, unit),
+                "formatted_pace": ResponseBuilder._format_pace(avg_speed, unit),
+            }
+
+        return aggregated

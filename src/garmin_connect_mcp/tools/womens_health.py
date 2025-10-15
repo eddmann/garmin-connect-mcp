@@ -2,34 +2,11 @@
 
 from typing import Annotated
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
-
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
 
 
 async def query_womens_health(
@@ -39,6 +16,7 @@ async def query_womens_health(
         str | None, "Range start date (YYYY-MM-DD, for menstrual calendar)"
     ] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD, for menstrual calendar)"] = None,
+    ctx: Context | None = None,
 ) -> str:
     """
     Query women's health data.
@@ -47,8 +25,9 @@ async def query_womens_health(
     - pregnancy: Get pregnancy tracking summary
     - menstrual: Get menstrual cycle data (for specific date or date range)
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         if data_type == "pregnancy":
             # Pregnancy summary
@@ -104,6 +83,6 @@ async def query_womens_health(
             )
 
     except GarminAPIError as e:
-        return ResponseBuilder.build_error_response(e.message, "garmin_api_error")
+        return ResponseBuilder.build_error_response(e.message, "api_error")
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")

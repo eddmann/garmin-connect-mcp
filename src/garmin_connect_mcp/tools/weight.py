@@ -2,48 +2,27 @@
 
 from typing import Annotated
 
-from ..auth import load_config, validate_credentials
-from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from fastmcp import Context
+
+from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
-
-# Global client instance
-_garmin_wrapper: GarminClientWrapper | None = None
-
-
-def _get_client() -> GarminClientWrapper:
-    """Get or initialize the Garmin client."""
-    global _garmin_wrapper
-
-    if _garmin_wrapper is None:
-        config = load_config()
-        if not validate_credentials(config):
-            raise GarminAPIError(
-                "Garmin credentials not configured. "
-                "Please set GARMIN_EMAIL and GARMIN_PASSWORD in .env file."
-            )
-
-        client = init_garmin_client(config)
-        if client is None:
-            raise GarminAPIError("Failed to initialize Garmin client")
-
-        _garmin_wrapper = GarminClientWrapper(client)
-
-    return _garmin_wrapper
 
 
 async def query_weight_data(
     date: Annotated[str | None, "Specific date ('today', 'yesterday', or YYYY-MM-DD)"] = None,
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
+    ctx: Context | None = None,
 ) -> str:
     """
     Query weight data.
 
     Get weight measurements for a specific date or date range.
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         # Determine query type
         if date:
@@ -71,10 +50,10 @@ async def query_weight_data(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials"]
+            e.message, "api_error", ["Check your Garmin Connect credentials"]
         )
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
 async def manage_weight_data(
@@ -82,6 +61,7 @@ async def manage_weight_data(
     weight: Annotated[float | None, "Weight in kg (for add action)"] = None,
     date: Annotated[str | None, "Date for entry (YYYY-MM-DD, defaults to today)"] = None,
     weigh_in_ids: Annotated[str | None, "Comma-separated IDs to delete (for delete action)"] = None,
+    ctx: Context | None = None,
 ) -> str:
     """
     Add or delete weight entries.
@@ -90,8 +70,9 @@ async def manage_weight_data(
     - add: Add a new weight entry (provide weight, optionally date)
     - delete: Delete weight entries (provide weigh_in_ids)
     """
+    assert ctx is not None
     try:
-        client = _get_client()
+        client = ctx.get_state("client")
 
         if action == "add":
             if weight is None:
@@ -139,6 +120,6 @@ async def manage_weight_data(
             )
 
     except GarminAPIError as e:
-        return ResponseBuilder.build_error_response(e.message, "garmin_api_error")
+        return ResponseBuilder.build_error_response(e.message, "api_error")
     except Exception as e:
-        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+        return ResponseBuilder.build_error_response(str(e), "internal_error")
