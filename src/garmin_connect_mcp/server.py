@@ -3,7 +3,7 @@
 from textwrap import dedent
 
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # Load environment variables
 load_dotenv()
