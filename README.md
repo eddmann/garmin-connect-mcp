@@ -235,6 +235,8 @@ _Note: The athlete profile resource (`garmin://athlete/profile`) and daily healt
 "Show me my training readiness and recent stats"
 ```
 
+_Note: List-returning tools use cursor-based pagination with default limits (10 items for activities, 7 for health data)._
+
 ## Available Tools
 
 ### Activities (3 tools)
