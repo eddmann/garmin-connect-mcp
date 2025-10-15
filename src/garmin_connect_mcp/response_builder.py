@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from typing import Any
 
+from .pagination import PaginationInfo
 from .types import JSONSerializable
 
 
@@ -15,6 +16,7 @@ class ResponseBuilder:
         data: JSONSerializable,
         analysis: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
+        pagination: PaginationInfo | dict[str, Any] | None = None,
     ) -> str:
         """
         Build a structured response with data, optional analysis, and metadata.
@@ -23,6 +25,7 @@ class ResponseBuilder:
             data: The primary data payload
             analysis: Optional analysis and insights about the data
             metadata: Optional metadata about the query/response
+            pagination: Optional pagination metadata
 
         Returns:
             JSON string with structured response
@@ -31,6 +34,9 @@ class ResponseBuilder:
 
         if analysis:
             response["analysis"] = analysis
+
+        if pagination:
+            response["pagination"] = pagination
 
         if metadata:
             response["metadata"] = metadata

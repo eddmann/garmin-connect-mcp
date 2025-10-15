@@ -12,6 +12,7 @@ This MCP server provides **22 tools** with intelligent analysis, **3 MCP resourc
 **Key Features:**
 - 🎯 **Use-case focused tools** - Unified interfaces for related operations
 - 📊 **Structured responses** - Consistent JSON with data, analysis, and metadata
+- 📄 **Cursor-based pagination** - Handle large datasets without hitting MCP limits
 - 🔍 **Rich analysis** - Automatic insights and pattern detection
 - 📈 **Training analysis** - Comprehensive training period analysis
 - 🔄 **Activity comparison** - Side-by-side activity comparisons
@@ -184,7 +185,7 @@ Ask Claude to interact with your Garmin data using natural language:
 
 | Tool                     | Description                                                                  |
 | ------------------------ | ---------------------------------------------------------------------------- |
-| `query_activities`       | Unified activity queries (by ID, date range, specific date, pagination)     |
+| `query_activities`       | Unified activity queries with cursor-based pagination (by ID, date range, specific date) |
 | `get_activity_details`   | Comprehensive activity details (splits, weather, HR zones, gear)             |
 | `get_activity_social`    | Social details for an activity (likes, comments, kudos)                      |
 
@@ -199,7 +200,7 @@ Ask Claude to interact with your Garmin data using natural language:
 
 | Tool                      | Description                                            |
 | ------------------------- | ------------------------------------------------------ |
-| `query_health_summary`    | Daily health snapshot (stats, training readiness, Body Battery) |
+| `query_health_summary`    | Daily health snapshot with pagination (stats, training readiness, Body Battery) |
 | `query_sleep_data`        | Sleep analysis with stages, scores, HRV                |
 | `query_heart_rate_data`   | Heart rate data with resting HR                        |
 | `query_activity_metrics`  | Activity metrics (steps, stress, respiration, SpO2, etc.) |
@@ -281,11 +282,33 @@ All tools return structured JSON with:
       // Automatic insights and patterns
     ]
   },
+  "pagination": {
+    // Present only for paginated responses
+    "cursor": "eyJwYWdlIjoyLCJmaWx0ZXJzIjp7Li4ufX0=",
+    "has_more": true,
+    "limit": 20,
+    "returned": 20
+  },
   "metadata": {
     "fetched_at": "2025-01-15T10:00:00Z",
     // Query parameters, unit system, etc.
   }
 }
+```
+
+### Pagination
+
+Tools that return large datasets (`query_activities`, `query_health_summary`) support cursor-based pagination to prevent hitting MCP size limits (1MB response, 100k character truncation):
+
+- **First request**: Omit `cursor` parameter, optionally set `limit`
+- **Check for more**: Look at `response["pagination"]["has_more"]`
+- **Next page**: Use `response["pagination"]["cursor"]` in the next request
+- **Stateless cursors**: Encoded page number + filters (no server-side state)
+
+Example:
+```
+"Show me all my activities from 2024"
+# Claude will automatically paginate through results using the cursor
 ```
 
 ## Development

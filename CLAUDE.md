@@ -84,6 +84,7 @@ src/garmin_connect_mcp/
 ├── cache.py               # Caching layer for API responses
 ├── config.py              # Configuration and environment variables
 ├── formatters.py          # Formatting utilities
+├── pagination.py          # Pagination utilities (cursor encode/decode)
 ├── response_builder.py    # Structured response builder
 ├── time_utils.py          # Time/date parsing utilities
 ├── types.py               # Type definitions and Pydantic models
@@ -128,20 +129,57 @@ Module for structured responses:
 
 ```python
 from .response_builder import ResponseBuilder
+from .pagination import build_pagination_info
 
-# Build structured response
+# Build structured response with pagination
+pagination = build_pagination_info(
+    returned_count=20,
+    limit=20,
+    current_page=1,
+    has_more=True,
+    filters={"start_date": "2024-01-01"}
+)
+
 response = ResponseBuilder.build_response(
     data={"activities": [...], "summary": {...}},
     analysis={"insights": ["High training volume", ...]},
-    metadata={"period": "Last 30 days"}
+    metadata={"period": "Last 30 days"},
+    pagination=pagination
 )
 
 # Response structure:
 # {
-#   "data": {...},      # Primary data payload
-#   "analysis": {...},  # Insights and analysis
-#   "metadata": {...}   # Query metadata + fetched_at timestamp
+#   "data": {...},       # Primary data payload
+#   "analysis": {...},   # Insights and analysis
+#   "pagination": {...}, # Pagination metadata (optional)
+#   "metadata": {...}    # Query metadata + fetched_at timestamp
 # }
+```
+
+#### Pagination (`pagination.py`)
+
+Module for cursor-based pagination:
+
+```python
+from .pagination import encode_cursor, decode_cursor, build_pagination_info
+
+# Encode cursor with page and filters
+cursor = encode_cursor(page=2, filters={"start_date": "2024-01-01"})
+# Returns: "eyJwYWdlIjoyLCJmaWx0ZXJzIjp7InN0YXJ0X2RhdGUiOiIyMDI0LTAxLTAxIn19"
+
+# Decode cursor
+cursor_data = decode_cursor(cursor)
+# Returns: {"page": 2, "filters": {"start_date": "2024-01-01"}}
+
+# Build pagination info for response
+pagination = build_pagination_info(
+    returned_count=20,
+    limit=20,
+    current_page=1,
+    has_more=True,
+    filters={"start_date": "2024-01-01"}
+)
+# Returns: {"cursor": "...", "has_more": True, "limit": 20, "returned": 20}
 ```
 
 #### Time Utils (`time_utils.py`)
@@ -190,14 +228,59 @@ async def query_activities(
     start_date: str | None = None,   # Range query
     end_date: str | None = None,
     date: str | None = None,         # Single date
+    cursor: str | None = None,       # Pagination cursor
+    limit: int | None = None,        # Page size
     activity_type: str | None = None # Filter
 ) -> str:
-    """Query activities with flexible parameters."""
+    """Query activities with flexible parameters and pagination."""
     # Implementation handles all patterns
 ```
 
 This approach provides better LLM integration by offering flexible parameters
 that adapt to different query needs within a single tool interface.
+
+### Pagination Pattern
+
+Tools that return large datasets support cursor-based pagination to prevent MCP size limits (1MB responses, 100k character truncation):
+
+```python
+# Query first page
+response = await query_activities(start_date="2024-01-01", end_date="2024-12-31", limit=20)
+
+# Check if more data available
+data = json.loads(response)
+if data.get("pagination", {}).get("has_more"):
+    cursor = data["pagination"]["cursor"]
+    # Fetch next page
+    next_response = await query_activities(cursor=cursor)
+```
+
+**Pagination Response Structure:**
+```json
+{
+  "data": {
+    "activities": [...],
+    "count": 20
+  },
+  "pagination": {
+    "cursor": "eyJwYWdlIjoyLCJmaWx0ZXJzIjp7InN0YXJ0X2RhdGUiOiIyMDI0LTAxLTAxIn19",
+    "has_more": true,
+    "limit": 20,
+    "returned": 20
+  },
+  "metadata": {...}
+}
+```
+
+**Key Features:**
+- **Stateless cursors**: Encode page number + filters (Base64 JSON)
+- **Auto-detection**: Fetch limit+1 items to detect more pages
+- **Preserved filters**: Cursor maintains query parameters
+- **Default limits**: 20 for activities, 30 for health data
+
+**Tools with Pagination:**
+- `query_activities`: Activities by date range or general queries (limit: 1-100, default 20)
+- `query_health_summary`: Health data for date ranges (limit: 1-90, default 30)
 
 ### Structured Response Pattern
 
