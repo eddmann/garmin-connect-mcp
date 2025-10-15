@@ -1,5 +1,6 @@
 """Data management tools for Garmin Connect MCP server."""
 
+import json
 from typing import Annotated
 
 from ..auth import load_config, validate_credentials
@@ -33,17 +34,27 @@ def _get_client() -> GarminClientWrapper:
 
 
 async def log_health_data(
-    data_type: Annotated[str, "Data type: 'body_composition', 'blood_pressure', 'hydration'"],
+    data_type: Annotated[
+        str, "Data type: 'body_composition', 'blood_pressure', 'hydration'"
+    ],
+    data: Annotated[
+        str,
+        "JSON object with the health data fields. "
+        "For body_composition: {'weight': 70.5, 'body_fat': 15.2, 'body_water': 60.0}. "
+        "For blood_pressure: {'systolic': 120, 'diastolic': 80}. "
+        "For hydration: {'volume_ml': 500}",
+    ],
     date: Annotated[str | None, "Date (YYYY-MM-DD, defaults to today)"] = None,
-    **kwargs,
 ) -> str:
     """
     Log health data entries.
 
     Data types:
-    - body_composition: Requires weight, body_fat, etc. (type-specific params)
-    - blood_pressure: Requires systolic, diastolic params
-    - hydration: Requires volume_ml param
+    - body_composition: Requires data with weight, body_fat, etc.
+    - blood_pressure: Requires data with systolic, diastolic
+    - hydration: Requires data with volume_ml
+
+    All data should be provided as a JSON string.
     """
     try:
         client = _get_client()
@@ -54,27 +65,37 @@ async def log_health_data(
             else parse_date_string("today").strftime("%Y-%m-%d")
         )
 
+        # Parse the JSON data
+        try:
+            params = json.loads(data)
+        except json.JSONDecodeError as e:
+            return ResponseBuilder.build_error_response(
+                f"Invalid JSON in data parameter: {e}",
+                "invalid_parameters",
+                ["Provide valid JSON object with the required fields"],
+            )
+
         if data_type == "body_composition":
             # Body composition logging
-            result = client.safe_call("add_body_composition", date_str, **kwargs)
+            result = client.safe_call("add_body_composition", date_str, **params)
             return ResponseBuilder.build_response(
-                data={"result": result},
+                data={"result": result, "body_composition": params},
                 analysis={"insights": [f"Body composition logged for {date_str}"]},
                 metadata={"data_type": "body_composition", "date": date_str},
             )
 
         elif data_type == "blood_pressure":
             # Blood pressure logging
-            systolic = kwargs.get("systolic")
-            diastolic = kwargs.get("diastolic")
+            systolic = params.get("systolic")
+            diastolic = params.get("diastolic")
 
             if not systolic or not diastolic:
                 return ResponseBuilder.build_error_response(
                     "Systolic and diastolic values required",
                     "invalid_parameters",
                     [
-                        "Provide systolic and diastolic parameters",
-                        "Example: systolic=120, diastolic=80",
+                        "Provide data with systolic and diastolic fields",
+                        'Example: {"systolic": 120, "diastolic": 80}',
                     ],
                 )
 
@@ -89,13 +110,16 @@ async def log_health_data(
 
         elif data_type == "hydration":
             # Hydration logging
-            volume_ml = kwargs.get("volume_ml")
+            volume_ml = params.get("volume_ml")
 
             if not volume_ml:
                 return ResponseBuilder.build_error_response(
                     "Volume in ml required",
                     "invalid_parameters",
-                    ["Provide volume_ml parameter", "Example: volume_ml=500"],
+                    [
+                        "Provide data with volume_ml field",
+                        'Example: {"volume_ml": 500}',
+                    ],
                 )
 
             result = client.safe_call("add_hydration_data", date_str, volume_ml)

@@ -1,7 +1,7 @@
 """Response builder for structured Garmin Connect MCP responses."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from .pagination import PaginationInfo
@@ -45,9 +45,9 @@ class ResponseBuilder:
         if "metadata" not in response:
             response["metadata"] = {}
 
-        response["metadata"]["fetched_at"] = datetime.utcnow().isoformat() + "Z"
+        response["metadata"]["fetched_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-        return json.dumps(response, default=str, separators=(',', ':'))
+        return json.dumps(response, default=str, separators=(",", ":"))
 
     @staticmethod
     def build_error_response(
@@ -68,14 +68,14 @@ class ResponseBuilder:
             "error": {
                 "type": error_type,
                 "message": message,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             }
         }
 
         if suggestions:
             response["error"]["suggestions"] = suggestions
 
-        return json.dumps(response, separators=(',', ':'))
+        return json.dumps(response, separators=(",", ":"))
 
     @staticmethod
     def format_activity(activity_dict: dict[str, Any], unit: str = "metric") -> dict[str, Any]:
