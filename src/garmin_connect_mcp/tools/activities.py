@@ -1,9 +1,10 @@
 """Activity-related tools for Garmin Connect MCP server."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from ..auth import load_config, validate_credentials
 from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from ..pagination import build_pagination_info, decode_cursor
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
 
@@ -33,27 +34,219 @@ def _get_client() -> GarminClientWrapper:
     return _garmin_wrapper
 
 
+async def _query_activities_paginated(
+    client: GarminClientWrapper,
+    start_date: str,
+    end_date: str,
+    activity_type: str,
+    cursor: str | None,
+    limit: int,
+    unit: str,
+) -> str:
+    """Query activities by date range with cursor-based pagination."""
+    # Parse cursor to get current page
+    current_page = 1
+    if cursor:
+        try:
+            cursor_data = decode_cursor(cursor)
+            current_page = cursor_data.get("page", 1)
+        except ValueError:
+            return ResponseBuilder.build_error_response(
+                "Invalid pagination cursor",
+                error_type="validation_error",
+            )
+
+    # Validate limit
+    if limit < 1 or limit > 100:
+        return ResponseBuilder.build_error_response(
+            f"Invalid limit: {limit}. Must be between 1 and 100.",
+            error_type="validation_error",
+        )
+
+    # Fetch all activities in date range (Garmin API doesn't support offset pagination directly)
+    # So we fetch all and slice in memory
+    all_activities = client.safe_call("get_activities_by_date", start_date, end_date, activity_type)
+
+    # Calculate offset for current page
+    offset = (current_page - 1) * limit
+
+    # Fetch limit+1 to detect if there are more pages
+    fetch_limit = limit + 1
+    activities = all_activities[offset : offset + fetch_limit]
+
+    # Check if there are more results
+    has_more = len(activities) > limit
+    activities = activities[:limit]
+
+    # Build pagination filters
+    pagination_filters: dict[str, Any] = {
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+    if activity_type:
+        pagination_filters["activity_type"] = activity_type
+
+    # Build pagination info
+    pagination = build_pagination_info(
+        returned_count=len(activities),
+        limit=limit,
+        current_page=current_page,
+        has_more=has_more,
+        filters=pagination_filters,
+    )
+
+    if not activities:
+        type_msg = f" of type '{activity_type}'" if activity_type else ""
+        return ResponseBuilder.build_response(
+            data={"activities": [], "count": 0},
+            metadata={
+                "start_date": start_date,
+                "end_date": end_date,
+                "activity_type": activity_type or "all",
+                "unit": unit,
+            },
+            pagination=pagination,
+            analysis={
+                "insights": [f"No activities found{type_msg} between {start_date} and {end_date}"]
+            },
+        )
+
+    # Format activities
+    formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+
+    return ResponseBuilder.build_response(
+        data={"activities": formatted_activities, "count": len(activities)},
+        metadata={
+            "start_date": start_date,
+            "end_date": end_date,
+            "activity_type": activity_type or "all",
+            "unit": unit,
+        },
+        pagination=pagination,
+    )
+
+
+async def _query_activities_general_paginated(
+    client: GarminClientWrapper,
+    activity_type: str,
+    cursor: str | None,
+    limit: int,
+    unit: str,
+) -> str:
+    """Query activities with general pagination (no date filter)."""
+    # Parse cursor to get current page
+    current_page = 1
+    if cursor:
+        try:
+            cursor_data = decode_cursor(cursor)
+            current_page = cursor_data.get("page", 1)
+        except ValueError:
+            return ResponseBuilder.build_error_response(
+                "Invalid pagination cursor",
+                error_type="validation_error",
+            )
+
+    # Validate limit
+    if limit < 1 or limit > 100:
+        return ResponseBuilder.build_error_response(
+            f"Invalid limit: {limit}. Must be between 1 and 100.",
+            error_type="validation_error",
+        )
+
+    # Calculate start index for Garmin API (0-based)
+    start_index = (current_page - 1) * limit
+
+    # Fetch limit+1 to detect if there are more pages
+    fetch_limit = limit + 1
+    activities = client.safe_call("get_activities", start_index, fetch_limit, activity_type)
+
+    # Check if there are more results
+    has_more = len(activities) > limit
+    activities = activities[:limit]
+
+    # Build pagination filters
+    pagination_filters: dict[str, Any] = {}
+    if activity_type:
+        pagination_filters["activity_type"] = activity_type
+
+    # Build pagination info
+    pagination = build_pagination_info(
+        returned_count=len(activities),
+        limit=limit,
+        current_page=current_page,
+        has_more=has_more,
+        filters=pagination_filters,
+    )
+
+    if not activities:
+        type_msg = f" of type '{activity_type}'" if activity_type else ""
+        return ResponseBuilder.build_response(
+            data={"activities": [], "count": 0},
+            metadata={"activity_type": activity_type or "all", "unit": unit},
+            pagination=pagination,
+            analysis={"insights": [f"No activities found{type_msg}"]},
+        )
+
+    # Format activities
+    formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+
+    return ResponseBuilder.build_response(
+        data={"activities": formatted_activities, "count": len(activities)},
+        metadata={"activity_type": activity_type or "all", "unit": unit},
+        pagination=pagination,
+    )
+
+
 async def query_activities(
     activity_id: Annotated[int | None, "Specific activity ID to retrieve"] = None,
     start_date: Annotated[str | None, "Start date in YYYY-MM-DD format for range query"] = None,
     end_date: Annotated[str | None, "End date in YYYY-MM-DD format for range query"] = None,
     date: Annotated[str | None, "Specific date in YYYY-MM-DD format or 'today'/'yesterday'"] = None,
-    start: Annotated[int | None, "Starting index for pagination (0-based)"] = None,
-    limit: Annotated[int | None, "Maximum number of activities to return"] = None,
+    cursor: Annotated[
+        str | None, "Pagination cursor from previous response (for continuing multi-page queries)"
+    ] = None,
+    limit: Annotated[
+        int | None,
+        "Maximum activities per page (1-100). Default: 20 for basic queries, 10 with details. "
+        "Use pagination cursor for large datasets.",
+    ] = None,
     activity_type: Annotated[str, "Activity type filter (e.g., 'running', 'cycling')"] = "",
     unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
 ) -> str:
     """
-    Query activities with flexible parameters.
+    Query activities with flexible parameters and pagination support.
 
     This unified tool supports multiple query patterns:
     1. Get specific activity: provide activity_id
-    2. Get activities by date range: provide start_date and end_date
+    2. Get activities by date range: provide start_date and end_date (paginated)
     3. Get activities for specific date: provide date
-    4. Get paginated activities: provide start and limit
+    4. Get paginated activities: use cursor and limit
     5. Get last activity: no parameters
 
     All queries can be filtered by activity_type (e.g., 'running', 'cycling').
+
+    Pagination:
+    For large time ranges, use pagination to retrieve all activities:
+    1. Make initial request without cursor
+    2. Check response["pagination"]["has_more"]
+    3. Use response["pagination"]["cursor"] for next page
+
+    Returns: JSON string with structure:
+    {
+        "data": {
+            "activity": {...}       // Single activity mode
+            OR
+            "activities": [...],    // List mode
+            "count": N
+        },
+        "pagination": {             // List mode only (when paginated)
+            "cursor": "...",        // Use for next page (null if no more)
+            "has_more": true,
+            "limit": 20,
+            "returned": 20
+        },
+        "metadata": {...}
+    }
     """
     try:
         client = _get_client()
@@ -80,41 +273,16 @@ async def query_activities(
                 metadata={"activity_id": activity_id, "unit": unit},
             )
 
-        # Pattern 2: Date range query
+        # Pattern 2: Date range query (with pagination)
         if start_date and end_date:
-            activities = client.safe_call(
-                "get_activities_by_date", start_date, end_date, activity_type
-            )
-
-            if not activities:
-                type_msg = f" of type '{activity_type}'" if activity_type else ""
-                return ResponseBuilder.build_response(
-                    data={"activities": [], "count": 0},
-                    metadata={
-                        "start_date": start_date,
-                        "end_date": end_date,
-                        "activity_type": activity_type,
-                    },
-                    analysis={
-                        "insights": [
-                            f"No activities found{type_msg} between {start_date} and {end_date}"
-                        ]
-                    },
-                )
-
-            # Format all activities
-            formatted_activities = [
-                ResponseBuilder.format_activity(act, unit) for act in activities
-            ]
-
-            return ResponseBuilder.build_response(
-                data={"activities": formatted_activities, "count": len(activities)},
-                metadata={
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "activity_type": activity_type or "all",
-                    "unit": unit,
-                },
+            return await _query_activities_paginated(
+                client=client,
+                start_date=start_date,
+                end_date=end_date,
+                activity_type=activity_type,
+                cursor=cursor,
+                limit=limit or 20,
+                unit=unit,
             )
 
         # Pattern 3: Specific date query
@@ -141,29 +309,15 @@ async def query_activities(
                 metadata={"date": date_str, "unit": unit},
             )
 
-        # Pattern 4: Pagination query
-        if start is not None and limit is not None:
-            activities = client.safe_call("get_activities", start, limit, activity_type)
-
-            if not activities:
-                type_msg = f" of type '{activity_type}'" if activity_type else ""
-                return ResponseBuilder.build_response(
-                    data={"activities": [], "count": 0},
-                    metadata={"start": start, "limit": limit, "activity_type": activity_type},
-                    analysis={"insights": [f"No activities found{type_msg}"]},
-                )
-
-            formatted_activities = [
-                ResponseBuilder.format_activity(act, unit) for act in activities
-            ]
-
-            return ResponseBuilder.build_response(
-                data={
-                    "activities": formatted_activities,
-                    "count": len(activities),
-                    "pagination": {"start": start, "limit": limit, "returned": len(activities)},
-                },
-                metadata={"activity_type": activity_type or "all", "unit": unit},
+        # Pattern 4: Pagination query (general pagination using Garmin's start/limit API)
+        if cursor is not None or limit is not None:
+            # Use cursor-based pagination for general queries
+            return await _query_activities_general_paginated(
+                client=client,
+                activity_type=activity_type,
+                cursor=cursor,
+                limit=limit or 20,
+                unit=unit,
             )
 
         # Pattern 5: Last activity (default)

@@ -1,10 +1,11 @@
 """Health and wellness tools for Garmin Connect MCP server."""
 
 from datetime import timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from ..auth import load_config, validate_credentials
 from ..client import GarminAPIError, GarminClientWrapper, init_garmin_client
+from ..pagination import build_pagination_info, decode_cursor
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
 
@@ -37,23 +38,77 @@ async def query_health_summary(
     date: Annotated[str | None, "Specific date ('today', 'yesterday', or YYYY-MM-DD)"] = None,
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
+    cursor: Annotated[
+        str | None, "Pagination cursor from previous response (for multi-day ranges)"
+    ] = None,
+    limit: Annotated[
+        int | None,
+        "Maximum days per page (1-90). Default: 30. Use cursor for large date ranges.",
+    ] = None,
     include_body_battery: Annotated[bool, "Include Body Battery data"] = True,
     include_training_readiness: Annotated[bool, "Include training readiness"] = True,
     include_training_status: Annotated[bool, "Include training status"] = True,
     unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
 ) -> str:
     """
-    Get comprehensive daily health snapshot.
+    Get comprehensive daily health snapshot with pagination support.
 
     Includes stats, user summary, training readiness, training status,
     Body Battery, and Body Battery events.
 
-    Supports single date or date range queries.
+    Supports single date or date range queries with pagination.
+
+    Pagination:
+    For large date ranges, use pagination:
+    1. Make initial request with start_date and end_date
+    2. Check response["pagination"]["has_more"]
+    3. Use response["pagination"]["cursor"] for next page
+
+    Returns: JSON string with structure:
+    {
+        "data": {
+            "summaries": [...],  // Range mode (paginated)
+            "count": N
+            OR
+            {...}                // Single date mode
+        },
+        "pagination": {          // Range mode only
+            "cursor": "...",
+            "has_more": true,
+            "limit": 30,
+            "returned": 30
+        },
+        "metadata": {...}
+    }
     """
     try:
         client = _get_client()
 
+        # Parse cursor for pagination
+        current_page = 1
+        if cursor:
+            try:
+                cursor_data = decode_cursor(cursor)
+                current_page = cursor_data.get("page", 1)
+            except ValueError:
+                return ResponseBuilder.build_error_response(
+                    "Invalid pagination cursor",
+                    error_type="validation_error",
+                )
+
+        # Set default limit
+        if limit is None:
+            limit = 30
+
+        # Validate limit
+        if limit < 1 or limit > 90:
+            return ResponseBuilder.build_error_response(
+                f"Invalid limit: {limit}. Must be between 1 and 90.",
+                error_type="validation_error",
+            )
+
         # Determine date(s) to query
+        has_more = False
         if date:
             parsed_date = parse_date_string(date)
             date_str = parsed_date.strftime("%Y-%m-%d")
@@ -62,11 +117,22 @@ async def query_health_summary(
         elif start_date and end_date:
             start = parse_date_string(start_date)
             end = parse_date_string(end_date)
-            dates = []
+            # Generate all dates in range
+            all_dates = []
             current = start
             while current <= end:
-                dates.append(current.strftime("%Y-%m-%d"))
+                all_dates.append(current.strftime("%Y-%m-%d"))
                 current += timedelta(days=1)
+
+            # Apply pagination
+            offset = (current_page - 1) * limit
+            fetch_limit = limit + 1
+            dates = all_dates[offset : offset + fetch_limit]
+
+            # Check if there are more pages
+            has_more = len(dates) > limit
+            dates = dates[:limit]
+
             is_range = True
         else:
             # Default to today
@@ -139,10 +205,26 @@ async def query_health_summary(
 
         # Return appropriate structure
         if is_range:
+            # Build pagination filters
+            pagination_filters: dict[str, Any] = {
+                "start_date": start_date,
+                "end_date": end_date,
+            }
+
+            # Build pagination info
+            pagination = build_pagination_info(
+                returned_count=len(summaries),
+                limit=limit,
+                current_page=current_page,
+                has_more=has_more,
+                filters=pagination_filters,
+            )
+
             return ResponseBuilder.build_response(
                 data={"summaries": summaries, "count": len(summaries)},
                 analysis={"insights": insights} if insights else None,
                 metadata={"start_date": dates[0], "end_date": dates[-1], "unit": unit},
+                pagination=pagination,
             )
         else:
             return ResponseBuilder.build_response(
