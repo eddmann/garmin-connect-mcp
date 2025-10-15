@@ -57,9 +57,9 @@ async def _query_activities_paginated(
             )
 
     # Validate limit
-    if limit < 1 or limit > 100:
+    if limit < 1 or limit > 50:
         return ResponseBuilder.build_error_response(
-            f"Invalid limit: {limit}. Must be between 1 and 100.",
+            f"Invalid limit: {limit}. Must be between 1 and 50.",
             error_type="validation_error",
         )
 
@@ -147,9 +147,9 @@ async def _query_activities_general_paginated(
             )
 
     # Validate limit
-    if limit < 1 or limit > 100:
+    if limit < 1 or limit > 50:
         return ResponseBuilder.build_error_response(
-            f"Invalid limit: {limit}. Must be between 1 and 100.",
+            f"Invalid limit: {limit}. Must be between 1 and 50.",
             error_type="validation_error",
         )
 
@@ -207,7 +207,7 @@ async def query_activities(
     ] = None,
     limit: Annotated[
         int | None,
-        "Maximum activities per page (1-100). Default: 20 for basic queries, 10 with details. "
+        "Maximum activities per page (1-50). Default: 10. "
         "Use pagination cursor for large datasets.",
     ] = None,
     activity_type: Annotated[str, "Activity type filter (e.g., 'running', 'cycling')"] = "",
@@ -281,7 +281,7 @@ async def query_activities(
                 end_date=end_date,
                 activity_type=activity_type,
                 cursor=cursor,
-                limit=limit or 20,
+                limit=limit or 10,
                 unit=unit,
             )
 
@@ -316,7 +316,7 @@ async def query_activities(
                 client=client,
                 activity_type=activity_type,
                 cursor=cursor,
-                limit=limit or 20,
+                limit=limit or 10,
                 unit=unit,
             )
 

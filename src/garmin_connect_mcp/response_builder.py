@@ -47,7 +47,7 @@ class ResponseBuilder:
 
         response["metadata"]["fetched_at"] = datetime.utcnow().isoformat() + "Z"
 
-        return json.dumps(response, indent=2, default=str)
+        return json.dumps(response, default=str, separators=(',', ':'))
 
     @staticmethod
     def build_error_response(
@@ -75,7 +75,7 @@ class ResponseBuilder:
         if suggestions:
             response["error"]["suggestions"] = suggestions
 
-        return json.dumps(response, indent=2)
+        return json.dumps(response, separators=(',', ':'))
 
     @staticmethod
     def format_activity(activity_dict: dict[str, Any], unit: str = "metric") -> dict[str, Any]:
