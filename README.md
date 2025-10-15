@@ -1,25 +1,27 @@
 # Garmin Connect MCP Server
 
-A Model Context Protocol (MCP) server for Garmin Connect integration. Access your activities, health data, training metrics, and more through Claude and other LLMs with intelligent analysis and insights.
+A Model Context Protocol (MCP) server for Garmin Connect integration. Access your activities, health data, training metrics, and more through Claude and other LLMs.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![MCP](https://img.shields.io/badge/MCP-1.3.1-green.svg)](https://modelcontextprotocol.io)
 
 ## Overview
 
-This MCP server provides **22 tools** with intelligent analysis, **3 MCP resources** for ongoing context, and **6 MCP prompts** for common queries. Tools are organized by use-case, providing better LLM integration and richer insights.
+This MCP server provides 22 tools to interact with your Garmin Connect account, organized into 8 categories:
 
-**Key Features:**
-- 🎯 **Use-case focused tools** - Unified interfaces for related operations
-- 📊 **Structured responses** - Consistent JSON with data, analysis, and metadata
-- 📄 **Cursor-based pagination** - Handle large datasets without hitting MCP limits
-- 🔍 **Rich analysis** - Automatic insights and pattern detection
-- 📈 **Training analysis** - Comprehensive training period analysis
-- 🔄 **Activity comparison** - Side-by-side activity comparisons
-- 🎲 **Similarity search** - Find similar activities
-- 🌍 **Unit support** - Both metric and imperial units
-- 📚 **MCP resources** - Ongoing context for athlete profile, training readiness, health
-- ⚡ **MCP prompts** - Pre-built templates for common queries
+- Activities (3 tools) - Query activities and view detailed metrics
+- Analysis (2 tools) - Compare activities and find similar workouts
+- Health & Wellness (4 tools) - Access health metrics, sleep, heart rate, and activity data
+- Training (3 tools) - Analyze training periods and performance trends
+- User Profile (1 tool) - Access profile, statistics, and personal records
+- Challenges & Goals (2 tools) - Track goals, PRs, badges, and challenges
+- Devices & Gear (2 tools) - Manage devices and equipment
+- Weight Management (2 tools) - Track weight data
+- Other (3 tools) - Workouts, manual data entry, women's health tracking
+
+Additionally, the server provides:
+
+- 3 MCP Resources - Athlete profile, training readiness, and daily health for ongoing context
+- 6 MCP Prompts - Templates for common queries (training analysis, sleep quality, readiness checks, activity analysis, run comparison, health summary)
 
 ## Prerequisites
 
@@ -30,17 +32,16 @@ This MCP server provides **22 tools** with intelligent analysis, **3 MCP resourc
 
 ### How Authentication Works
 
-1. **First Run**: Server authenticates with your Garmin Connect credentials
-2. **MFA Support**: If enabled, prompts for your MFA code (interactive stdin)
-3. **Token Storage**: OAuth tokens saved to `~/.garminconnect/` and automatically refreshed
-4. **UV**: Tokens persist across runs
-5. **Docker**: Tokens are ephemeral (container authenticates on each restart)
+1. Credential Authentication - First run authenticates with email/password
+2. MFA Support - If MFA is enabled, you'll be prompted for your code (interactive stdin)
+3. Token Storage - OAuth tokens saved to `~/.garminconnect/` and automatically refreshed
+4. Persistence - Tokens persist across runs (UV on host, Docker requires volume mount)
 
 ### Option 1: Using UV
 
 ```bash
 # Install dependencies
-cd my-garmin-connect-mcp
+cd garmin-connect-mcp
 uv sync
 ```
 
@@ -52,7 +53,7 @@ Then configure credentials using one of these methods:
 uv run garmin-connect-mcp-auth
 ```
 
-This will prompt for your credentials (and MFA code if needed) and save them to `.env`.
+This will prompt for your credentials and save them to `.env`.
 
 #### Manual Setup
 
@@ -97,6 +98,23 @@ GARMIN_EMAIL=your-email@example.com
 GARMIN_PASSWORD=your-password
 ```
 
+#### MFA Support for Docker
+
+If you have MFA enabled on your Garmin account:
+
+- The server will prompt for your MFA code on first run (requires `-it` flags for interactive input)
+- **Important**: Without token persistence, you'll need to enter your MFA code on every container restart
+- **Recommended**: Mount the token directory as a volume to persist tokens and avoid repeated MFA prompts
+
+To persist tokens across Docker runs, create a directory for tokens and mount it:
+
+```bash
+# Create token directory on host
+mkdir -p ~/.garminconnect-docker
+
+# Then use this directory in your Docker configuration (see Claude Desktop Configuration below)
+```
+
 ## Claude Desktop Configuration
 
 Add to your configuration file:
@@ -109,12 +127,12 @@ Add to your configuration file:
 ```json
 {
   "mcpServers": {
-    "garmin-connect": {
+    "garmin": {
       "command": "uv",
       "args": [
         "run",
         "--directory",
-        "/ABSOLUTE/PATH/TO/my-garmin-connect-mcp",
+        "/ABSOLUTE/PATH/TO/garmin-connect-mcp",
         "garmin-connect-mcp"
       ]
     }
@@ -124,10 +142,12 @@ Add to your configuration file:
 
 ### Using Docker
 
+#### Without Token Persistence (MFA required on every restart)
+
 ```json
 {
   "mcpServers": {
-    "garmin-connect": {
+    "garmin": {
       "command": "docker",
       "args": [
         "run",
@@ -142,184 +162,170 @@ Add to your configuration file:
 }
 ```
 
-## Usage Examples
+#### With Token Persistence (Recommended for MFA users)
 
-Ask Claude to interact with your Garmin data using natural language:
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/ABSOLUTE/PATH/TO/garmin-connect-mcp.env:/app/.env",
+        "-v",
+        "/ABSOLUTE/PATH/TO/.garminconnect-docker:/root/.garminconnect",
+        "ghcr.io/eddmann/garmin-connect-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+Replace `/ABSOLUTE/PATH/TO/.garminconnect-docker` with the absolute path to your token directory. On Windows, use something like `C:\\Users\\YOUR_USERNAME\\.garminconnect-docker`.
+
+## Usage
+
+Ask Claude to interact with your Garmin data using natural language. The server provides tools, resources, and prompt templates to help you get started.
+
+### Quick Start with MCP Prompts
+
+Use built-in prompt templates for common queries (available via prompt suggestions in Claude):
+
+- `analyze-recent-training` - Analyze my training over the past 30 days
+- `sleep-quality-report` - Analyze sleep quality with recommendations
+- `training-readiness-check` - Check if I'm ready to train hard today
+- `activity-deep-dive` - Deep dive into a specific activity
+- `compare-recent-runs` - Compare recent runs to track progress
+- `health-summary` - Show comprehensive health overview
+
+### Activities
+
+```
+"Show me my runs from the last 30 days"
+"Get details for my half marathon yesterday including splits and heart rate zones"
+"Show me the comments on my latest cycling activity"
+```
 
 ### Training Analysis
 
 ```
-"Analyze my training over the last 30 days"
-"Show me weekly trends for my running activities"
-"How has my training volume changed this month?"
-```
-
-### Activity Comparison
-
-```
-"Compare my last 3 runs"
-"Find activities similar to my morning run from yesterday"
-"Show me how my pace has improved over recent rides"
+"Analyze my training over the past 30 days"
+"Compare my last three 10K runs"
+"Find runs similar to my tempo workout from last week"
 ```
 
 ### Health & Wellness
 
 ```
-"How did I sleep last week?"
+"How did I sleep last night?"
 "What's my Body Battery level today?"
 "Show me my stress levels and recovery status"
 "Am I ready to train hard today?"
 ```
 
+_Note: The athlete profile resource (`garmin://athlete/profile`) and daily health resource (`garmin://health/today`) automatically provide ongoing context._
+
 ### Performance Metrics
 
 ```
-"What's my VO2 max trend this month?"
-"Show me my hill score progression"
-"How's my HRV looking lately?"
+"What's my VO2 max trend?"
+"Show me my training readiness and recent stats"
 ```
 
-## Available Tools (22)
+## Available Tools
 
 ### Activities (3 tools)
 
-| Tool                     | Description                                                                  |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `query_activities`       | Unified activity queries with cursor-based pagination (by ID, date range, specific date) |
-| `get_activity_details`   | Comprehensive activity details (splits, weather, HR zones, gear)             |
-| `get_activity_social`    | Social details for an activity (likes, comments, kudos)                      |
+| Tool                   | Description                                                            |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `query-activities`     | Query activities with pagination (by ID, date range, or specific date) |
+| `get-activity-details` | Get comprehensive activity details (splits, weather, HR zones, gear)   |
+| `get-activity-social`  | Get social details for an activity (likes, comments, kudos)            |
 
 ### Analysis (2 tools)
 
 | Tool                      | Description                                     |
 | ------------------------- | ----------------------------------------------- |
-| `compare_activities`      | Side-by-side activity comparison                |
-| `find_similar_activities` | Find activities matching criteria               |
+| `compare-activities`      | Compare 2-5 activities side-by-side             |
+| `find-similar-activities` | Find activities similar to a reference activity |
 
 ### Health & Wellness (4 tools)
 
-| Tool                      | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `query_health_summary`    | Daily health snapshot with pagination (stats, training readiness, Body Battery) |
-| `query_sleep_data`        | Sleep analysis with stages, scores, HRV                |
-| `query_heart_rate_data`   | Heart rate data with resting HR                        |
-| `query_activity_metrics`  | Activity metrics (steps, stress, respiration, SpO2, etc.) |
+| Tool                     | Description                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `query-health-summary`   | Query daily health summaries with pagination (stats, readiness, Body Battery) |
+| `query-sleep-data`       | Query sleep data with stages, scores, and HRV                                 |
+| `query-heart-rate-data`  | Query heart rate data with resting HR                                         |
+| `query-activity-metrics` | Query activity metrics (steps, stress, respiration, SpO2, etc.)               |
 
 ### Training (3 tools)
 
-| Tool                      | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `analyze_training_period` | Comprehensive training analysis with insights          |
-| `get_performance_metrics` | VO2 max, hill score, endurance, HRV, fitness age       |
-| `get_training_effect`     | Training effect and progress summary                   |
+| Tool                      | Description                                                         |
+| ------------------------- | ------------------------------------------------------------------- |
+| `analyze-training-period` | Analyze training over a time period with insights                   |
+| `get-performance-metrics` | Get performance metrics (VO2 max, hill score, endurance, HRV, etc.) |
+| `get-training-effect`     | Get training effect and progress summary                            |
 
 ### User Profile (1 tool)
 
-| Tool                | Description                                          |
-| ------------------- | ---------------------------------------------------- |
-| `get_user_profile`  | Comprehensive profile with stats, PRs, devices       |
+| Tool               | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| `get-user-profile` | Get comprehensive athlete profile with stats and PRs |
 
 ### Challenges & Goals (2 tools)
 
-| Tool                       | Description                                    |
-| -------------------------- | ---------------------------------------------- |
-| `query_goals_and_records`  | Goals, personal records, race predictions      |
-| `query_challenges`         | Challenges and badges (by status and type)     |
+| Tool                      | Description                                         |
+| ------------------------- | --------------------------------------------------- |
+| `query-goals-and-records` | Query goals, personal records, and race predictions |
+| `query-challenges`        | Query challenges and badges (by status and type)    |
 
 ### Devices & Gear (2 tools)
 
-| Tool            | Description                                              |
-| --------------- | -------------------------------------------------------- |
-| `query_devices` | Device information (with settings, solar data, alarms)   |
-| `query_gear`    | Gear and equipment (with defaults and usage stats)       |
+| Tool            | Description                                                  |
+| --------------- | ------------------------------------------------------------ |
+| `query-devices` | Query device information (with settings, solar data, alarms) |
+| `query-gear`    | Query gear and equipment (with defaults and usage stats)     |
 
 ### Weight Management (2 tools)
 
-| Tool                  | Description                              |
-| --------------------- | ---------------------------------------- |
-| `query_weight_data`   | Weight data for date or range            |
-| `manage_weight_data`  | Add or delete weight entries             |
+| Tool                 | Description                         |
+| -------------------- | ----------------------------------- |
+| `query-weight-data`  | Query weight data for date or range |
+| `manage-weight-data` | Add or delete weight entries        |
 
 ### Other (3 tools)
 
-| Tool                   | Description                                            |
-| ---------------------- | ------------------------------------------------------ |
-| `manage_workouts`      | Workout management (list, get, download, upload)       |
-| `log_health_data`      | Log body composition, blood pressure, hydration        |
-| `query_womens_health`  | Pregnancy and menstrual cycle data                     |
+| Tool                  | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `manage-workouts`     | Workout management (list, get, download, upload) |
+| `log-health-data`     | Log body composition, blood pressure, hydration  |
+| `query-womens-health` | Query pregnancy and menstrual cycle data         |
 
-## MCP Resources (3)
+## MCP Resources
 
-Resources provide ongoing context to context-aware MCP clients:
+Resources provide ongoing context to the LLM without requiring explicit tool calls:
 
-- `garmin://athlete/profile` - Athlete profile with stats and zones
-- `garmin://training/readiness` - Current training readiness and Body Battery
-- `garmin://health/today` - Today's health snapshot (steps, sleep, stress, HR)
+| Resource                      | Description                                        |
+| ----------------------------- | -------------------------------------------------- |
+| `garmin://athlete/profile`    | Athlete profile with stats, zones, and PRs         |
+| `garmin://training/readiness` | Current training readiness and Body Battery        |
+| `garmin://health/today`       | Today's health snapshot (steps, sleep, stress, HR) |
 
-## MCP Prompts (6)
+## MCP Prompts
 
-Pre-built templates for common queries:
+Prompt templates for common queries (accessible via prompt suggestion in Claude):
 
-- `analyze_recent_training` - Analyze training over a period
-- `sleep_quality_report` - Sleep quality analysis with recommendations
-- `training_readiness_check` - Check if ready to train today
-- `activity_deep_dive` - Comprehensive activity analysis
-- `compare_recent_runs` - Compare recent runs for trends
-- `health_summary` - Comprehensive health overview
-
-## Response Format
-
-All tools return structured JSON with:
-
-```json
-{
-  "data": {
-    // Primary data payload with rich formatting
-    // Both raw values and human-readable formats
-  },
-  "analysis": {
-    "insights": [
-      // Automatic insights and patterns
-    ]
-  },
-  "pagination": {
-    // Present only for paginated responses
-    "cursor": "eyJwYWdlIjoyLCJmaWx0ZXJzIjp7Li4ufX0=",
-    "has_more": true,
-    "limit": 20,
-    "returned": 20
-  },
-  "metadata": {
-    "fetched_at": "2025-01-15T10:00:00Z",
-    // Query parameters, unit system, etc.
-  }
-}
-```
-
-### Pagination
-
-Tools that return large datasets (`query_activities`, `query_health_summary`) support cursor-based pagination to prevent hitting MCP size limits (1MB response, 100k character truncation):
-
-- **First request**: Omit `cursor` parameter, optionally set `limit`
-- **Check for more**: Look at `response["pagination"]["has_more"]`
-- **Next page**: Use `response["pagination"]["cursor"]` in the next request
-- **Stateless cursors**: Encoded page number + filters (no server-side state)
-
-Example:
-```
-"Show me all my activities from 2024"
-# Claude will automatically paginate through results using the cursor
-```
-
-## Development
-
-See [CLAUDE.md](CLAUDE.md) for comprehensive developer documentation including:
-
-- Project architecture
-- Development commands
-- Tool design patterns
-- Testing strategy
-- Contributing guidelines
+| Prompt                     | Description                                         |
+| -------------------------- | --------------------------------------------------- |
+| `analyze-recent-training`  | Analyze training over a specified period            |
+| `sleep-quality-report`     | Sleep quality analysis with recommendations         |
+| `training-readiness-check` | Check if ready to train hard today                  |
+| `activity-deep-dive`       | Deep dive into a specific activity with all metrics |
+| `compare-recent-runs`      | Compare recent runs to identify trends              |
+| `health-summary`           | Comprehensive health overview                       |
 
 ## License
 
