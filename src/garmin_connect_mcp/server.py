@@ -14,6 +14,7 @@ mcp = FastMCP("Garmin Connect")
 # Import and register all tools
 from .tools.activities import (
     get_activity_details,
+    get_activity_social,
     query_activities,
 )
 from .tools.analysis import (
@@ -38,7 +39,7 @@ from .tools.training import (
     get_performance_metrics,
     get_training_effect,
 )
-from .tools.user_profile import get_full_name
+from .tools.user_profile import get_user_profile
 from .tools.weight import manage_weight_data, query_weight_data
 from .tools.womens_health import query_womens_health
 from .tools.workouts import manage_workouts
@@ -46,6 +47,7 @@ from .tools.workouts import manage_workouts
 # Register activity tools
 mcp.tool()(query_activities)
 mcp.tool()(get_activity_details)
+mcp.tool()(get_activity_social)
 
 # Register analysis tools
 mcp.tool()(compare_activities)
@@ -62,7 +64,7 @@ mcp.tool()(query_devices)
 mcp.tool()(query_gear)
 
 # Register user profile tools
-mcp.tool()(get_full_name)
+mcp.tool()(get_user_profile)
 
 # Register challenge tools
 mcp.tool()(query_goals_and_records)
@@ -95,23 +97,31 @@ mcp.tool()(query_womens_health)
 @mcp.resource("garmin://athlete/profile")
 async def athlete_profile_resource() -> str:
     """Provide athlete profile with stats and zones for context-aware clients."""
-    # This would call get_full_name and other profile APIs
-    # For now, return a placeholder
-    return '{"resource": "athlete_profile", "note": "Athlete profile context"}'
+    return await get_user_profile(
+        include_stats=True,
+        include_prs=True,
+        include_devices=True,
+    )
 
 
 @mcp.resource("garmin://training/readiness")
 async def training_readiness_resource() -> str:
     """Provide current training readiness, Body Battery, and recovery status."""
-    # This would call query_health_summary for today
-    return '{"resource": "training_readiness", "note": "Current training readiness and recovery status"}'
+    return await query_health_summary(
+        date="today",
+        include_body_battery=True,
+        include_training_readiness=True,
+        include_training_status=True,
+    )
 
 
 @mcp.resource("garmin://health/today")
 async def health_today_resource() -> str:
     """Provide today's health snapshot (steps, sleep, stress, HR)."""
-    # This would call query_activity_metrics for today
-    return '{"resource": "health_today", "note": "Today\'s health metrics snapshot"}'
+    return await query_activity_metrics(
+        date="today",
+        metrics="steps,stress,heart_rate,body_battery",
+    )
 
 
 # ============================================================================

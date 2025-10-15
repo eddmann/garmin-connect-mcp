@@ -79,12 +79,20 @@ async def query_goals_and_records(
         return ResponseBuilder.build_response(
             data=data,
             analysis={"insights": insights} if insights else None,
-            metadata={"includes": {"goals": include_goals, "prs": include_prs, "race_predictions": include_race_predictions}},
+            metadata={
+                "includes": {
+                    "goals": include_goals,
+                    "prs": include_prs,
+                    "race_predictions": include_race_predictions,
+                }
+            },
         )
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
@@ -172,7 +180,9 @@ async def query_challenges(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")

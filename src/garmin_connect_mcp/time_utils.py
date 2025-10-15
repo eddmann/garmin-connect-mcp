@@ -73,7 +73,9 @@ def parse_time_range(period: str) -> tuple[datetime, datetime]:
 
             return start_date, end_date
         except ValueError as e:
-            raise ValueError(f"Invalid absolute date range format: {period}. Use YYYY-MM-DD:YYYY-MM-DD") from e
+            raise ValueError(
+                f"Invalid absolute date range format: {period}. Use YYYY-MM-DD:YYYY-MM-DD"
+            ) from e
 
     raise ValueError(
         f"Invalid period format: {period}. "
@@ -198,7 +200,9 @@ def parse_date_string(date_str: str) -> datetime:
         return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
     if date_str == "yesterday":
-        return (datetime.now() - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (datetime.now() - timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
     try:
         # Try YYYY-MM-DD format
@@ -210,4 +214,6 @@ def parse_date_string(date_str: str) -> datetime:
         # Try ISO format
         return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
     except ValueError as e:
-        raise ValueError(f"Invalid date format: {date_str}. Use 'today', 'yesterday', or 'YYYY-MM-DD'") from e
+        raise ValueError(
+            f"Invalid date format: {date_str}. Use 'today', 'yesterday', or 'YYYY-MM-DD'"
+        ) from e

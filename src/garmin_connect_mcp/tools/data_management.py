@@ -48,7 +48,11 @@ async def log_health_data(
     try:
         client = _get_client()
 
-        date_str = parse_date_string(date).strftime("%Y-%m-%d") if date else parse_date_string("today").strftime("%Y-%m-%d")
+        date_str = (
+            parse_date_string(date).strftime("%Y-%m-%d")
+            if date
+            else parse_date_string("today").strftime("%Y-%m-%d")
+        )
 
         if data_type == "body_composition":
             # Body composition logging
@@ -68,13 +72,18 @@ async def log_health_data(
                 return ResponseBuilder.build_error_response(
                     "Systolic and diastolic values required",
                     "invalid_parameters",
-                    ["Provide systolic and diastolic parameters", "Example: systolic=120, diastolic=80"],
+                    [
+                        "Provide systolic and diastolic parameters",
+                        "Example: systolic=120, diastolic=80",
+                    ],
                 )
 
             result = client.safe_call("set_blood_pressure", date_str, systolic, diastolic)
             return ResponseBuilder.build_response(
                 data={"result": result, "systolic": systolic, "diastolic": diastolic},
-                analysis={"insights": [f"Blood pressure logged: {systolic}/{diastolic} on {date_str}"]},
+                analysis={
+                    "insights": [f"Blood pressure logged: {systolic}/{diastolic} on {date_str}"]
+                },
                 metadata={"data_type": "blood_pressure", "date": date_str},
             )
 

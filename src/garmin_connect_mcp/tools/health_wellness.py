@@ -153,7 +153,9 @@ async def query_health_summary(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
@@ -236,7 +238,9 @@ async def query_sleep_data(
                     count += 1
 
             if count > 0:
-                insights.append(f"Average sleep: {avg_sleep / count:.1f} hours/night over {count} nights")
+                insights.append(
+                    f"Average sleep: {avg_sleep / count:.1f} hours/night over {count} nights"
+                )
 
         # Return appropriate structure
         if is_range:
@@ -254,7 +258,9 @@ async def query_sleep_data(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
@@ -344,7 +350,9 @@ async def query_heart_rate_data(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
@@ -355,7 +363,8 @@ async def query_activity_metrics(
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
     metrics: Annotated[
-        str, "Comma-separated metrics: steps,stress,respiration,spo2,floors,hydration,blood_pressure,body_composition"
+        str,
+        "Comma-separated metrics: steps,stress,respiration,spo2,floors,hydration,blood_pressure,body_composition",
     ] = "steps,stress",
     unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
 ) -> str:
@@ -475,7 +484,9 @@ async def query_activity_metrics(
         insights = []
         insights.append(f"Requested metrics: {', '.join(requested_metrics)}")
         if len(metrics_data) == 1:
-            available = [k for k in metrics_data[0].keys() if k != "date" and metrics_data[0][k] is not None]
+            available = [
+                k for k in metrics_data[0].keys() if k != "date" and metrics_data[0][k] is not None
+            ]
             if available:
                 insights.append(f"Available metrics: {', '.join(available)}")
         else:
@@ -486,18 +497,29 @@ async def query_activity_metrics(
             return ResponseBuilder.build_response(
                 data={"metrics": metrics_data, "count": len(metrics_data)},
                 analysis={"insights": insights} if insights else None,
-                metadata={"start_date": dates[0], "end_date": dates[-1], "requested_metrics": requested_metrics, "unit": unit},
+                metadata={
+                    "start_date": dates[0],
+                    "end_date": dates[-1],
+                    "requested_metrics": requested_metrics,
+                    "unit": unit,
+                },
             )
         else:
             return ResponseBuilder.build_response(
                 data=metrics_data[0] if metrics_data else {},
                 analysis={"insights": insights} if insights else None,
-                metadata={"date": dates[0] if dates else None, "requested_metrics": requested_metrics, "unit": unit},
+                metadata={
+                    "date": dates[0] if dates else None,
+                    "requested_metrics": requested_metrics,
+                    "unit": unit,
+                },
             )
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")

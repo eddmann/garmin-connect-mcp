@@ -66,7 +66,10 @@ async def query_activities(
                 return ResponseBuilder.build_error_response(
                     f"Activity {activity_id} not found",
                     "not_found",
-                    ["Check that the activity ID is correct", "Try query_activities() to list recent activities"],
+                    [
+                        "Check that the activity ID is correct",
+                        "Try query_activities() to list recent activities",
+                    ],
                 )
 
             # Format the activity with rich data
@@ -79,18 +82,30 @@ async def query_activities(
 
         # Pattern 2: Date range query
         if start_date and end_date:
-            activities = client.safe_call("get_activities_by_date", start_date, end_date, activity_type)
+            activities = client.safe_call(
+                "get_activities_by_date", start_date, end_date, activity_type
+            )
 
             if not activities:
                 type_msg = f" of type '{activity_type}'" if activity_type else ""
                 return ResponseBuilder.build_response(
                     data={"activities": [], "count": 0},
-                    metadata={"start_date": start_date, "end_date": end_date, "activity_type": activity_type},
-                    analysis={"insights": [f"No activities found{type_msg} between {start_date} and {end_date}"]},
+                    metadata={
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "activity_type": activity_type,
+                    },
+                    analysis={
+                        "insights": [
+                            f"No activities found{type_msg} between {start_date} and {end_date}"
+                        ]
+                    },
                 )
 
             # Format all activities
-            formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+            formatted_activities = [
+                ResponseBuilder.format_activity(act, unit) for act in activities
+            ]
 
             return ResponseBuilder.build_response(
                 data={"activities": formatted_activities, "count": len(activities)},
@@ -117,7 +132,9 @@ async def query_activities(
                     analysis={"insights": [f"No activities found for {date_str}"]},
                 )
 
-            formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+            formatted_activities = [
+                ResponseBuilder.format_activity(act, unit) for act in activities
+            ]
 
             return ResponseBuilder.build_response(
                 data={"activities": formatted_activities, "count": len(activities)},
@@ -136,7 +153,9 @@ async def query_activities(
                     analysis={"insights": [f"No activities found{type_msg}"]},
                 )
 
-            formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+            formatted_activities = [
+                ResponseBuilder.format_activity(act, unit) for act in activities
+            ]
 
             return ResponseBuilder.build_response(
                 data={
@@ -165,7 +184,9 @@ async def query_activities(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
@@ -199,7 +220,10 @@ async def get_activity_details(
             return ResponseBuilder.build_error_response(
                 f"Activity {activity_id} not found",
                 "not_found",
-                ["Check that the activity ID is correct", "Try query_activities() to list recent activities"],
+                [
+                    "Check that the activity ID is correct",
+                    "Try query_activities() to list recent activities",
+                ],
             )
 
         # Format base activity
@@ -271,7 +295,72 @@ async def get_activity_details(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
+        )
+    except Exception as e:
+        return ResponseBuilder.build_error_response(str(e), "unexpected_error")
+
+
+async def get_activity_social(
+    activity_id: Annotated[int, "Activity ID to get social details for"],
+) -> str:
+    """
+    Get social details for an activity (likes, comments, kudos).
+
+    Args:
+        activity_id: The Garmin Connect activity ID
+
+    Returns:
+        Structured JSON with social data, analysis, and metadata
+    """
+    try:
+        client = _get_client()
+
+        # Get activity social details
+        social = client.safe_call("get_activity_social", activity_id)
+
+        # Generate insights
+        insights = []
+        if social:
+            # Count likes/kudos
+            likes_count = 0
+            if isinstance(social, dict):
+                if "likes" in social and isinstance(social["likes"], list):
+                    likes_count = len(social["likes"])
+                elif "kudos" in social and isinstance(social["kudos"], list):
+                    likes_count = len(social["kudos"])
+
+            if likes_count > 0:
+                insights.append(f"Received {likes_count} like(s)/kudo(s)")
+
+            # Count comments
+            comments_count = 0
+            if (
+                isinstance(social, dict)
+                and "comments" in social
+                and isinstance(social["comments"], list)
+            ):
+                comments_count = len(social["comments"])
+
+            if comments_count > 0:
+                insights.append(f"Has {comments_count} comment(s)")
+
+            if likes_count == 0 and comments_count == 0:
+                insights.append("No social interactions yet")
+
+        return ResponseBuilder.build_response(
+            data={"activity_id": activity_id, "social": social},
+            analysis={"insights": insights} if insights else None,
+            metadata={"activity_id": activity_id},
+        )
+
+    except GarminAPIError as e:
+        return ResponseBuilder.build_error_response(
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify the activity ID is correct"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")

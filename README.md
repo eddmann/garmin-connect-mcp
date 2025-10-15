@@ -7,7 +7,7 @@ A Model Context Protocol (MCP) server for Garmin Connect integration. Access you
 
 ## Overview
 
-This MCP server provides **21 tools** with intelligent analysis, **3 MCP resources** for ongoing context, and **6 MCP prompts** for common queries. Tools are organized by use-case, providing better LLM integration and richer insights.
+This MCP server provides **22 tools** with intelligent analysis, **3 MCP resources** for ongoing context, and **6 MCP prompts** for common queries. Tools are organized by use-case, providing better LLM integration and richer insights.
 
 **Key Features:**
 - 🎯 **Use-case focused tools** - Unified interfaces for related operations
@@ -178,20 +178,20 @@ Ask Claude to interact with your Garmin data using natural language:
 "How's my HRV looking lately?"
 ```
 
-## Available Tools (21)
+## Available Tools (22)
 
-### Activities (2 tools)
+### Activities (3 tools)
 
 | Tool                     | Description                                                                  |
 | ------------------------ | ---------------------------------------------------------------------------- |
 | `query_activities`       | Unified activity queries (by ID, date range, specific date, pagination)     |
 | `get_activity_details`   | Comprehensive activity details (splits, weather, HR zones, gear)             |
+| `get_activity_social`    | Social details for an activity (likes, comments, kudos)                      |
 
-### Analysis (3 tools)
+### Analysis (2 tools)
 
 | Tool                      | Description                                     |
 | ------------------------- | ----------------------------------------------- |
-| `analyze_training_period` | Comprehensive training analysis with insights   |
 | `compare_activities`      | Side-by-side activity comparison                |
 | `find_similar_activities` | Find activities matching criteria               |
 
@@ -208,9 +208,15 @@ Ask Claude to interact with your Garmin data using natural language:
 
 | Tool                      | Description                                            |
 | ------------------------- | ------------------------------------------------------ |
-| `analyze_training_period` | Training analysis for any period (see Analysis section) |
+| `analyze_training_period` | Comprehensive training analysis with insights          |
 | `get_performance_metrics` | VO2 max, hill score, endurance, HRV, fitness age       |
 | `get_training_effect`     | Training effect and progress summary                   |
+
+### User Profile (1 tool)
+
+| Tool                | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| `get_user_profile`  | Comprehensive profile with stats, PRs, devices       |
 
 ### Challenges & Goals (2 tools)
 
@@ -240,7 +246,6 @@ Ask Claude to interact with your Garmin data using natural language:
 | `manage_workouts`      | Workout management (list, get, download, upload)       |
 | `log_health_data`      | Log body composition, blood pressure, hydration        |
 | `query_womens_health`  | Pregnancy and menstrual cycle data                     |
-| `get_full_name`        | User profile name                                      |
 
 ## MCP Resources (3)
 
