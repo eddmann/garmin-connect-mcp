@@ -80,6 +80,7 @@ src/garmin_connect_mcp/
 ├── __init__.py
 ├── server.py              # FastMCP server, tool registration, resources, prompts
 ├── client.py              # Garmin Connect API client wrapper
+├── middleware.py          # Middleware for client initialization and injection
 ├── auth.py                # OAuth authentication handling
 ├── cache.py               # Caching layer for API responses
 ├── config.py              # Configuration and environment variables
@@ -110,17 +111,27 @@ src/garmin_connect_mcp/
 
 #### Server (`server.py`)
 
-- FastMCP server initialization
+- FastMCP server initialization with middleware registration
 - Tool registration using `@mcp.tool()` decorators
 - Resource registration using `@mcp.resource()` decorators
 - Prompt registration using `@mcp.prompt()` decorators
-- Context management for API client lifecycle
+- Imports all tools to make them available to the server
+
+#### Middleware (`middleware.py`)
+
+- `ConfigMiddleware` handles client initialization for all tool calls
+- Loads Garmin config from environment variables
+- Validates credentials before tool execution
+- Initializes Garmin client and injects it into FastMCP context
+- Tools access client via `ctx.get_state("client")`
+- Raises `ToolError` if authentication fails
 
 #### Client (`client.py`)
 
-- Wrapper around `garminconnect` library
-- Handles authentication and token management
-- Provides high-level methods for API calls
+- `GarminClientWrapper` wraps the `garminconnect` library
+- Provides `safe_call()` method with error handling and type conversion
+- Custom exceptions: `GarminAPIError`, `GarminRateLimitError`, `GarminNotFoundError`, `GarminAuthenticationError`
+- `init_garmin_client()` handles authentication and token management
 - Token storage in `~/.garminconnect/`
 
 #### Response Builder (`response_builder.py`)
@@ -288,50 +299,63 @@ if data.get("pagination", {}).get("has_more"):
 All tools should return structured JSON using `ResponseBuilder`:
 
 ```python
+from fastmcp import Context
+from typing import Annotated
+
 @mcp.tool()
-async def analyze_training_period(period: str = "30d") -> str:
+async def analyze_training_period(
+    ctx: Annotated[Context, "FastMCP context"],
+    period: str = "30d"
+) -> str:
     """Analyze training over a period."""
-    client = _get_client()
+    assert ctx is not None
+    try:
+        # Get client from context (injected by middleware)
+        client = ctx.get_state("client")
 
-    # Parse time range
-    start_date, end_date = parse_time_range(period)
+        # Parse time range
+        start_date, end_date = parse_time_range(period)
 
-    # Fetch data
-    activities = client.safe_call("get_activities_by_date", start_date, end_date)
+        # Fetch data
+        activities = client.safe_call("get_activities_by_date", start_date, end_date)
 
-    # Calculate metrics
-    data = {
-        "period": {...},
-        "summary": {...},
-        "by_activity_type": [...],
-        "trends": {...}
-    }
+        # Calculate metrics
+        data = {
+            "period": {...},
+            "summary": {...},
+            "by_activity_type": [...],
+            "trends": {...}
+        }
 
-    # Generate insights
-    analysis = {
-        "insights": [
-            "High training volume: 15 activities in 31 days",
-            "Training focused on running"
-        ]
-    }
+        # Generate insights
+        analysis = {
+            "insights": [
+                "High training volume: 15 activities in 31 days",
+                "Training focused on running"
+            ]
+        }
 
-    # Build response
-    return ResponseBuilder.build_response(
-        data=data,
-        analysis=analysis,
-        metadata={"period": get_range_description(period)}
-    )
+        # Build response
+        return ResponseBuilder.build_response(
+            data=data,
+            analysis=analysis,
+            metadata={"period": get_range_description(period)}
+        )
+    except GarminAPIError as e:
+        return ResponseBuilder.build_error_response(str(e), "api_error")
 ```
 
 ### Tool Implementation Guidelines
 
 1. **Use type hints:** All parameters and return types should be annotated
 2. **Provide docstrings:** Clear descriptions for LLM understanding
-3. **Use `_get_client()` pattern:** Tools use a module-level global client instance
-4. **Handle errors gracefully:** Use `ResponseBuilder.build_error_response()`
-5. **Return structured JSON:** Use `ResponseBuilder.build_response()`
-6. **Support unit preferences:** Accept `unit` parameter ("metric" or "imperial")
-7. **Provide formatted output:** Include both raw values and human-readable formatting
+3. **Accept Context parameter:** First parameter must be `ctx: Annotated[Context, "FastMCP context"]`
+4. **Access client from context:** Use `client = ctx.get_state("client")` to get the injected client
+5. **Assert context exists:** Add `assert ctx is not None` at the start of tool functions
+6. **Handle errors gracefully:** Wrap tool logic in try/except and use `ResponseBuilder.build_error_response()`
+7. **Return structured JSON:** Use `ResponseBuilder.build_response()`
+8. **Support unit preferences:** Accept `unit` parameter ("metric" or "imperial")
+9. **Provide formatted output:** Include both raw values and human-readable formatting
 
 ## Testing Strategy
 
@@ -355,30 +379,38 @@ Use `pytest-mock` to mock API responses:
 
 ```python
 import pytest
-from garmin_connect_mcp.client import GarminConnectClient
+from unittest.mock import MagicMock
+from garmin_connect_mcp.client import GarminClientWrapper
 
 @pytest.fixture
-def mock_client(mocker):
-    """Mock Garmin Connect client."""
-    client = mocker.MagicMock(spec=GarminConnectClient)
-    # Mock specific methods
-    client.get_activities.return_value = [...]
-    return client
+def mock_context(mocker):
+    """Mock FastMCP context with client."""
+    mock_client = mocker.MagicMock(spec=GarminClientWrapper)
+    mock_client.safe_call.return_value = [...]  # Mock API responses
 
-async def test_query_activities(mock_client):
+    mock_ctx = MagicMock()
+    mock_ctx.get_state.return_value = mock_client
+
+    return mock_ctx
+
+async def test_query_activities(mock_context):
     """Test activity querying."""
-    result = await query_activities(start_date="2024-01-01", context=None)
+    result = await query_activities(ctx=mock_context, start_date="2024-01-01")
     # Assertions
+    assert result is not None
+    mock_context.get_state.assert_called_with("client")
 ```
 
 ### Test Fixtures
 
 Common fixtures in `conftest.py`:
 
-- `mock_client`: Mocked Garmin Connect client
-- `sample_activity`: Sample activity data
-- `sample_sleep_data`: Sample sleep data
-- `freeze_time`: Freeze time for consistent date-based tests
+- `sample_sleep_data`: Sample sleep data matching Garmin API structure
+- `sample_stress_data`: Sample stress data
+- `sample_heart_rate_data`: Sample heart rate data
+- `sample_steps_data`: Sample steps data
+
+For tool tests, create a `mock_context` fixture that provides a mocked FastMCP context with a `GarminClientWrapper` instance.
 
 ### Coverage Requirements
 
@@ -408,9 +440,10 @@ Common fixtures in `conftest.py`:
    - No user intervention required
 
 4. **Session Management:**
-   - Server maintains session per request via MCP context
+   - Middleware initializes client for each tool call
+   - Client injected into FastMCP context via `ConfigMiddleware`
+   - Tools access client via `ctx.get_state("client")`
    - Context lifecycle managed by FastMCP
-   - Client cached in context for request duration
 
 ### Security Considerations
 
@@ -426,17 +459,26 @@ Common fixtures in `conftest.py`:
 Tools are the primary interface for LLM queries:
 
 ```python
+from fastmcp import Context
+from typing import Annotated
+
 @mcp.tool()
 async def tool_name(
+    ctx: Annotated[Context, "FastMCP context"],
     param1: str,
     param2: int | None = None,
 ) -> str:
     """Tool description for LLM understanding."""
-    client = _get_client()
-    # Fetch data from Garmin API
-    data = client.safe_call("garmin_api_method", param1)
-    # Return structured response
-    return ResponseBuilder.build_response(data=data, analysis=...)
+    assert ctx is not None
+    try:
+        # Get client from context (injected by middleware)
+        client = ctx.get_state("client")
+        # Fetch data from Garmin API
+        data = client.safe_call("garmin_api_method", param1)
+        # Return structured response
+        return ResponseBuilder.build_response(data=data, analysis=...)
+    except GarminAPIError as e:
+        return ResponseBuilder.build_error_response(str(e), "api_error")
 ```
 
 ### Resources
@@ -447,15 +489,30 @@ Resources provide ongoing context to the LLM:
 @mcp.resource("garmin://athlete/profile")
 async def athlete_profile_resource() -> str:
     """Provide athlete profile for context."""
-    # Call existing tool function to get profile data
-    return await get_user_profile(
-        include_stats=True,
-        include_prs=True,
-        include_devices=True,
+    # Resources don't go through middleware, so initialize client directly
+    from .auth import load_config
+    from .client import GarminClientWrapper, init_garmin_client
+    from .response_builder import ResponseBuilder
+
+    config = load_config()
+    client = init_garmin_client(config)
+    if client is None:
+        return ResponseBuilder.build_error_response("Failed to initialize Garmin client")
+
+    wrapper = GarminClientWrapper(client)
+
+    # Fetch profile data
+    full_name = wrapper.safe_call("get_full_name")
+    unit_system = wrapper.safe_call("get_unit_system")
+    user_summary = wrapper.safe_call("get_user_summary")
+
+    return ResponseBuilder.build_response(
+        data={"profile": {"name": full_name, "unit_system": unit_system}, "summary": user_summary},
+        metadata={"resource": "athlete_profile"}
     )
 ```
 
-Resources are automatically fetched by context-aware MCP clients. Resources typically call existing tool functions to provide consistent data structure.
+**Important:** Resources don't go through middleware, so they must initialize the client directly. Resources are automatically fetched by context-aware MCP clients.
 
 ### Prompts
 
@@ -488,22 +545,26 @@ Prompts help users execute common queries without crafting prompts manually.
 
 1. Identify the use case and parameters
 2. Implement in appropriate `tools/*.py` file
-3. Use `@mcp.tool()` decorator (FastMCP will auto-register when imported in server.py)
-4. Use `_get_client()` pattern for API access
-5. Use `ResponseBuilder` for structured responses
-6. Add comprehensive docstring with parameter descriptions
-7. Write unit tests
-8. Register tool in `server.py` with `mcp.tool()(your_function)`
-9. Update README.md with tool description
+3. First parameter must be `ctx: Annotated[Context, "FastMCP context"]`
+4. Access client via `client = ctx.get_state("client")`
+5. Wrap logic in try/except for error handling
+6. Use `ResponseBuilder` for structured responses
+7. Add comprehensive docstring with parameter descriptions
+8. Import tool function in `server.py`
+9. Register tool in `server.py` with `mcp.tool()(your_function)`
+10. Write unit tests
+11. Update README.md with tool description
 
 ### Adding a Resource
 
 1. Design resource URI (e.g., `garmin://resource/name`)
 2. Implement using `@mcp.resource()` decorator
-3. Return structured JSON via `ResponseBuilder`
-4. Ensure data is suitable for ongoing context
-5. Test resource fetching
-6. Document in README.md
+3. Initialize client directly (resources don't use middleware)
+4. Import required modules: `load_config`, `init_garmin_client`, `GarminClientWrapper`
+5. Return structured JSON via `ResponseBuilder`
+6. Ensure data is suitable for ongoing context
+7. Test resource fetching
+8. Document in README.md
 
 ### Adding a Prompt
 
