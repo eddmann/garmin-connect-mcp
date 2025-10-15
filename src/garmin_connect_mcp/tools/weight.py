@@ -101,7 +101,11 @@ async def manage_weight_data(
                     ["Provide weight in kg", "Example: weight=75.5"],
                 )
 
-            date_str = parse_date_string(date).strftime("%Y-%m-%d") if date else parse_date_string("today").strftime("%Y-%m-%d")
+            date_str = (
+                parse_date_string(date).strftime("%Y-%m-%d")
+                if date
+                else parse_date_string("today").strftime("%Y-%m-%d")
+            )
 
             result = client.safe_call("add_weigh_in", weight, date_str)
             return ResponseBuilder.build_response(

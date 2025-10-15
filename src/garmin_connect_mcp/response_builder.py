@@ -59,7 +59,11 @@ class ResponseBuilder:
             JSON string with error response
         """
         response: dict[str, Any] = {
-            "error": {"type": error_type, "message": message, "timestamp": datetime.utcnow().isoformat() + "Z"}
+            "error": {
+                "type": error_type,
+                "message": message,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            }
         }
 
         if suggestions:

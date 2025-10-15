@@ -51,7 +51,10 @@ async def manage_workouts(
         if action == "list":
             workouts = client.safe_call("get_workouts")
             return ResponseBuilder.build_response(
-                data={"workouts": workouts, "count": len(workouts) if isinstance(workouts, list) else 0},
+                data={
+                    "workouts": workouts,
+                    "count": len(workouts) if isinstance(workouts, list) else 0,
+                },
                 metadata={"action": "list"},
             )
 

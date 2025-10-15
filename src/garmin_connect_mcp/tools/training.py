@@ -40,8 +40,12 @@ def _get_client() -> GarminClientWrapper:
 
 
 async def analyze_training_period(
-    period: Annotated[str, "Time period: '7d', '30d', '90d', 'ytd', 'this-month', or 'YYYY-MM-DD:YYYY-MM-DD'"] = "30d",
-    activity_type: Annotated[str, "Filter by activity type (e.g., 'running', 'cycling'). Empty for all."] = "",
+    period: Annotated[
+        str, "Time period: '7d', '30d', '90d', 'ytd', 'this-month', or 'YYYY-MM-DD:YYYY-MM-DD'"
+    ] = "30d",
+    activity_type: Annotated[
+        str, "Filter by activity type (e.g., 'running', 'cycling'). Empty for all."
+    ] = "",
     unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
 ) -> str:
     """
@@ -182,7 +186,9 @@ async def analyze_training_period(
                             total_distance / len(activities) if activities else 0, unit
                         ),
                     },
-                    "activities_per_week": round(len(activities) / (days_in_period / 7), 1) if days_in_period > 0 else 0,
+                    "activities_per_week": round(len(activities) / (days_in_period / 7), 1)
+                    if days_in_period > 0
+                    else 0,
                 },
             },
             "by_activity_type": by_type_list,
@@ -194,11 +200,17 @@ async def analyze_training_period(
 
         # Activity volume insight
         if len(activities) >= 15:
-            insights.append(f"High training volume: {len(activities)} activities in {days_in_period} days")
+            insights.append(
+                f"High training volume: {len(activities)} activities in {days_in_period} days"
+            )
         elif len(activities) >= 8:
-            insights.append(f"Moderate training volume: {len(activities)} activities in {days_in_period} days")
+            insights.append(
+                f"Moderate training volume: {len(activities)} activities in {days_in_period} days"
+            )
         else:
-            insights.append(f"Light training volume: {len(activities)} activities in {days_in_period} days")
+            insights.append(
+                f"Light training volume: {len(activities)} activities in {days_in_period} days"
+            )
 
         # Trend insight
         if len(weekly_trends) >= 2:
@@ -232,7 +244,9 @@ async def analyze_training_period(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
@@ -316,7 +330,9 @@ async def get_performance_metrics(
             # Endurance score
             if include_endurance_score:
                 try:
-                    endurance_score = client.safe_call("get_endurance_score", query_start, query_end)
+                    endurance_score = client.safe_call(
+                        "get_endurance_score", query_start, query_end
+                    )
                     metrics_data["endurance_score"] = endurance_score
                 except Exception:
                     metrics_data["endurance_score"] = None
@@ -339,7 +355,9 @@ async def get_performance_metrics(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
@@ -372,7 +390,9 @@ async def get_training_effect(
 
         # Pattern 2: Progress summary
         elif start_date and end_date:
-            summary = client.safe_call("get_progress_summary_between_dates", start_date, end_date, metric)
+            summary = client.safe_call(
+                "get_progress_summary_between_dates", start_date, end_date, metric
+            )
 
             return ResponseBuilder.build_response(
                 data={"progress_summary": summary},
@@ -391,7 +411,9 @@ async def get_training_effect(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")

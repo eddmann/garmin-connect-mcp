@@ -4,7 +4,7 @@ This document provides comprehensive guidance for Claude Code and developers wor
 
 ## Project Overview
 
-A Model Context Protocol (MCP) server that provides LLMs with access to Garmin Connect health and fitness data. The server features a use-case-focused architecture with 21 tools, MCP resources, and prompts for optimal LLM integration.
+A Model Context Protocol (MCP) server that provides LLMs with access to Garmin Connect health and fitness data. The server features a use-case-focused architecture with 22 tools, MCP resources, and prompts for optimal LLM integration.
 
 **Technology Stack:**
 - Python 3.11+
@@ -160,6 +160,22 @@ start, end = parse_time_range("2024-01-01:2024-01-31")  # Absolute range
 description = get_range_description("30d")  # "Last 30 days"
 ```
 
+## Available Tools
+
+The server provides **22 tools** organized into 8 categories:
+
+- **Activities (3):** query_activities, get_activity_details, get_activity_social
+- **Analysis (2):** compare_activities, find_similar_activities
+- **Health & Wellness (4):** query_health_summary, query_sleep_data, query_heart_rate_data, query_activity_metrics
+- **Training (3):** analyze_training_period, get_performance_metrics, get_training_effect
+- **User Profile (1):** get_user_profile
+- **Challenges & Goals (2):** query_goals_and_records, query_challenges
+- **Devices & Gear (2):** query_devices, query_gear
+- **Weight Management (2):** query_weight_data, manage_weight_data
+- **Other (3):** manage_workouts, log_health_data, query_womens_health
+
+See README.md for detailed tool descriptions and parameters.
+
 ## Tool Organization & Design Patterns
 
 ### Tool Design Philosophy
@@ -189,15 +205,15 @@ All tools should return structured JSON using `ResponseBuilder`:
 
 ```python
 @mcp.tool()
-async def analyze_training_period(period: str = "30d", context: Context | None = None) -> str:
+async def analyze_training_period(period: str = "30d") -> str:
     """Analyze training over a period."""
-    client = await get_client(context)
+    client = _get_client()
 
     # Parse time range
     start_date, end_date = parse_time_range(period)
 
     # Fetch data
-    activities = await client.get_activities(start_date, end_date)
+    activities = client.safe_call("get_activities_by_date", start_date, end_date)
 
     # Calculate metrics
     data = {
@@ -227,7 +243,7 @@ async def analyze_training_period(period: str = "30d", context: Context | None =
 
 1. **Use type hints:** All parameters and return types should be annotated
 2. **Provide docstrings:** Clear descriptions for LLM understanding
-3. **Accept `context: Context | None`:** For client lifecycle management
+3. **Use `_get_client()` pattern:** Tools use a module-level global client instance
 4. **Handle errors gracefully:** Use `ResponseBuilder.build_error_response()`
 5. **Return structured JSON:** Use `ResponseBuilder.build_response()`
 6. **Support unit preferences:** Accept `unit` parameter ("metric" or "imperial")
@@ -330,11 +346,13 @@ Tools are the primary interface for LLM queries:
 async def tool_name(
     param1: str,
     param2: int | None = None,
-    context: Context | None = None
 ) -> str:
     """Tool description for LLM understanding."""
-    # Implementation
-    return ResponseBuilder.build_response(data=..., analysis=...)
+    client = _get_client()
+    # Fetch data from Garmin API
+    data = client.safe_call("garmin_api_method", param1)
+    # Return structured response
+    return ResponseBuilder.build_response(data=data, analysis=...)
 ```
 
 ### Resources
@@ -343,13 +361,17 @@ Resources provide ongoing context to the LLM:
 
 ```python
 @mcp.resource("garmin://athlete/profile")
-async def athlete_profile_resource(context: Context | None = None) -> str:
+async def athlete_profile_resource() -> str:
     """Provide athlete profile for context."""
-    # Fetch profile data
-    return ResponseBuilder.build_response(data=profile_data)
+    # Call existing tool function to get profile data
+    return await get_user_profile(
+        include_stats=True,
+        include_prs=True,
+        include_devices=True,
+    )
 ```
 
-Resources are automatically fetched by context-aware MCP clients.
+Resources are automatically fetched by context-aware MCP clients. Resources typically call existing tool functions to provide consistent data structure.
 
 ### Prompts
 
@@ -382,12 +404,13 @@ Prompts help users execute common queries without crafting prompts manually.
 
 1. Identify the use case and parameters
 2. Implement in appropriate `tools/*.py` file
-3. Use `@mcp.tool()` decorator
-4. Accept `context: Context | None` parameter
+3. Use `@mcp.tool()` decorator (FastMCP will auto-register when imported in server.py)
+4. Use `_get_client()` pattern for API access
 5. Use `ResponseBuilder` for structured responses
-6. Add comprehensive docstring
+6. Add comprehensive docstring with parameter descriptions
 7. Write unit tests
-8. Update README.md with tool description
+8. Register tool in `server.py` with `mcp.tool()(your_function)`
+9. Update README.md with tool description
 
 ### Adding a Resource
 

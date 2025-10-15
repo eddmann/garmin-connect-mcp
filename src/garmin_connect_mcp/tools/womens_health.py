@@ -35,7 +35,9 @@ def _get_client() -> GarminClientWrapper:
 async def query_womens_health(
     data_type: Annotated[str, "Data type: 'pregnancy' or 'menstrual'"],
     date: Annotated[str | None, "Specific date (YYYY-MM-DD)"] = None,
-    start_date: Annotated[str | None, "Range start date (YYYY-MM-DD, for menstrual calendar)"] = None,
+    start_date: Annotated[
+        str | None, "Range start date (YYYY-MM-DD, for menstrual calendar)"
+    ] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD, for menstrual calendar)"] = None,
 ) -> str:
     """
@@ -64,11 +66,17 @@ async def query_womens_health(
                 menstrual_data = client.safe_call("get_menstrual_data_for_date", date_str)
                 return ResponseBuilder.build_response(
                     data={"menstrual_data": menstrual_data, "date": date_str},
-                    metadata={"data_type": "menstrual", "query_type": "single_date", "date": date_str},
+                    metadata={
+                        "data_type": "menstrual",
+                        "query_type": "single_date",
+                        "date": date_str,
+                    },
                 )
             elif start_date and end_date:
                 # Date range (calendar)
-                calendar_data = client.safe_call("get_menstrual_calendar_data", start_date, end_date)
+                calendar_data = client.safe_call(
+                    "get_menstrual_calendar_data", start_date, end_date
+                )
                 return ResponseBuilder.build_response(
                     data={"menstrual_calendar": calendar_data},
                     metadata={
@@ -82,7 +90,10 @@ async def query_womens_health(
                 return ResponseBuilder.build_error_response(
                     "Date or date range required for menstrual data",
                     "invalid_parameters",
-                    ["Provide date for single day", "Or provide start_date and end_date for calendar view"],
+                    [
+                        "Provide date for single day",
+                        "Or provide start_date and end_date for calendar view",
+                    ],
                 )
 
         else:

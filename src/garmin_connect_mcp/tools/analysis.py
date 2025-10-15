@@ -62,7 +62,10 @@ async def compare_activities(
             return ResponseBuilder.build_error_response(
                 "Cannot compare more than 5 activities at once",
                 "invalid_parameters",
-                ["Please limit comparison to 5 activities", "Split into multiple comparisons if needed"],
+                [
+                    "Please limit comparison to 5 activities",
+                    "Split into multiple comparisons if needed",
+                ],
             )
 
         # Fetch all activities
@@ -81,7 +84,10 @@ async def compare_activities(
             return ResponseBuilder.build_error_response(
                 f"Could only fetch {len(activities)} of {len(ids)} activities",
                 "insufficient_data",
-                ["Check that activity IDs are correct", "Ensure activities exist and are accessible"],
+                [
+                    "Check that activity IDs are correct",
+                    "Ensure activities exist and are accessible",
+                ],
             )
 
         # Build comparison data
@@ -91,7 +97,9 @@ async def compare_activities(
         distances = []
         for act in activities:
             if isinstance(act.get("distance"), dict):
-                distances.append((act["activityId"], act["distance"]["meters"], act["distance"]["formatted"]))
+                distances.append(
+                    (act["activityId"], act["distance"]["meters"], act["distance"]["formatted"])
+                )
             elif act.get("distance"):
                 dist = act["distance"]
                 distances.append(
@@ -101,20 +109,28 @@ async def compare_activities(
         if distances:
             distances.sort(key=lambda x: x[1], reverse=True)
             comparison["distance"] = {
-                "longest": {"id": distances[0][0], "meters": distances[0][1], "formatted": distances[0][2]},
-                "shortest": {"id": distances[-1][0], "meters": distances[-1][1], "formatted": distances[-1][2]},
+                "longest": {
+                    "id": distances[0][0],
+                    "meters": distances[0][1],
+                    "formatted": distances[0][2],
+                },
+                "shortest": {
+                    "id": distances[-1][0],
+                    "meters": distances[-1][1],
+                    "formatted": distances[-1][2],
+                },
             }
 
         # Time comparison
         times = []
         for act in activities:
             if isinstance(act.get("duration"), dict):
-                times.append((act["activityId"], act["duration"]["seconds"], act["duration"]["formatted"]))
+                times.append(
+                    (act["activityId"], act["duration"]["seconds"], act["duration"]["formatted"])
+                )
             elif act.get("duration"):
                 dur = act["duration"]
-                times.append(
-                    (act["activityId"], dur, ResponseBuilder._format_duration(dur))
-                )
+                times.append((act["activityId"], dur, ResponseBuilder._format_duration(dur)))
 
         if times:
             times.sort(key=lambda x: x[1])
@@ -126,8 +142,16 @@ async def compare_activities(
         # Pace comparison (for activities with distance and time)
         paces = []
         for act in activities:
-            dist = act.get("distance", {}).get("meters") if isinstance(act.get("distance"), dict) else act.get("distance")
-            dur = act.get("duration", {}).get("seconds") if isinstance(act.get("duration"), dict) else act.get("duration")
+            dist = (
+                act.get("distance", {}).get("meters")
+                if isinstance(act.get("distance"), dict)
+                else act.get("distance")
+            )
+            dur = (
+                act.get("duration", {}).get("seconds")
+                if isinstance(act.get("duration"), dict)
+                else act.get("duration")
+            )
 
             if dist and dur and dist > 0 and dur > 0:
                 mps = dist / dur
@@ -145,7 +169,11 @@ async def compare_activities(
         for act in activities:
             if isinstance(act.get("elevationGain"), dict):
                 elevations.append(
-                    (act["activityId"], act["elevationGain"]["meters"], act["elevationGain"]["formatted"])
+                    (
+                        act["activityId"],
+                        act["elevationGain"]["meters"],
+                        act["elevationGain"]["formatted"],
+                    )
                 )
             elif act.get("elevationGain"):
                 elev = act["elevationGain"]
@@ -156,8 +184,16 @@ async def compare_activities(
         if elevations:
             elevations.sort(key=lambda x: x[1], reverse=True)
             comparison["elevation"] = {
-                "most": {"id": elevations[0][0], "meters": elevations[0][1], "formatted": elevations[0][2]},
-                "least": {"id": elevations[-1][0], "meters": elevations[-1][1], "formatted": elevations[-1][2]},
+                "most": {
+                    "id": elevations[0][0],
+                    "meters": elevations[0][1],
+                    "formatted": elevations[0][2],
+                },
+                "least": {
+                    "id": elevations[-1][0],
+                    "meters": elevations[-1][1],
+                    "formatted": elevations[-1][2],
+                },
             }
 
         # Heart rate comparison (if available)
@@ -179,14 +215,17 @@ async def compare_activities(
 
         # Activity type consistency
         activity_types = set(
-            act.get("activityType", {}).get("typeKey", "unknown") if isinstance(act.get("activityType"), dict)
+            act.get("activityType", {}).get("typeKey", "unknown")
+            if isinstance(act.get("activityType"), dict)
             else "unknown"
             for act in activities
         )
         if len(activity_types) == 1:
             insights.append(f"All activities are {list(activity_types)[0]} type")
         else:
-            insights.append(f"Activities span {len(activity_types)} different types: {', '.join(activity_types)}")
+            insights.append(
+                f"Activities span {len(activity_types)} different types: {', '.join(activity_types)}"
+            )
 
         # Performance variation
         if paces and len(paces) >= 2:
@@ -195,11 +234,17 @@ async def compare_activities(
             if fastest_mps > 0:
                 diff_percent = ((fastest_mps - slowest_mps) / slowest_mps) * 100
                 if diff_percent > 25:
-                    insights.append(f"Large pace variation: fastest is {diff_percent:.0f}% faster than slowest")
+                    insights.append(
+                        f"Large pace variation: fastest is {diff_percent:.0f}% faster than slowest"
+                    )
                 elif diff_percent > 10:
-                    insights.append(f"Moderate pace variation: fastest is {diff_percent:.0f}% faster than slowest")
+                    insights.append(
+                        f"Moderate pace variation: fastest is {diff_percent:.0f}% faster than slowest"
+                    )
                 else:
-                    insights.append(f"Consistent pace: only {diff_percent:.0f}% difference between fastest and slowest")
+                    insights.append(
+                        f"Consistent pace: only {diff_percent:.0f}% difference between fastest and slowest"
+                    )
 
         # Distance consistency
         if distances and len(distances) >= 2:
@@ -218,7 +263,9 @@ async def compare_activities(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
@@ -226,7 +273,9 @@ async def compare_activities(
 
 async def find_similar_activities(
     activity_id: Annotated[int, "Reference activity ID"],
-    criteria: Annotated[str, "Similarity criteria: 'type', 'distance', 'elevation', 'duration' (comma-separated)"] = "type,distance",
+    criteria: Annotated[
+        str, "Similarity criteria: 'type', 'distance', 'elevation', 'duration' (comma-separated)"
+    ] = "type,distance",
     limit: Annotated[int, "Maximum number of similar activities to return"] = 10,
     unit: Annotated[str, "Unit system: 'metric' or 'imperial'"] = "metric",
 ) -> str:
@@ -264,7 +313,10 @@ async def find_similar_activities(
             return ResponseBuilder.build_error_response(
                 f"Reference activity {activity_id} not found",
                 "not_found",
-                ["Check that the activity ID is correct", "Ensure the activity exists and is accessible"],
+                [
+                    "Check that the activity ID is correct",
+                    "Ensure the activity exists and is accessible",
+                ],
             )
 
         # Extract reference metrics
@@ -279,7 +331,10 @@ async def find_similar_activities(
 
         if not candidate_activities:
             return ResponseBuilder.build_response(
-                data={"reference_activity": ResponseBuilder.format_activity(ref_activity, unit), "similar_activities": []},
+                data={
+                    "reference_activity": ResponseBuilder.format_activity(ref_activity, unit),
+                    "similar_activities": [],
+                },
                 analysis={"insights": ["No activities available to compare"]},
                 metadata={"reference_activity_id": activity_id, "criteria": criteria_list},
             )
@@ -302,7 +357,11 @@ async def find_similar_activities(
                     match_score += 1
                     differences["type"] = {"match": True}
                 else:
-                    differences["type"] = {"match": False, "reference": ref_type, "activity": act_type}
+                    differences["type"] = {
+                        "match": False,
+                        "reference": ref_type,
+                        "activity": act_type,
+                    }
 
             # Check distance (±20%)
             if "distance" in criteria_list and ref_distance > 0:
@@ -412,7 +471,9 @@ async def find_similar_activities(
 
     except GarminAPIError as e:
         return ResponseBuilder.build_error_response(
-            e.message, "garmin_api_error", ["Check your Garmin Connect credentials", "Verify your internet connection"]
+            e.message,
+            "garmin_api_error",
+            ["Check your Garmin Connect credentials", "Verify your internet connection"],
         )
     except Exception as e:
         return ResponseBuilder.build_error_response(str(e), "unexpected_error")
