@@ -50,48 +50,161 @@ from .tools.womens_health import query_womens_health
 from .tools.workouts import manage_workouts
 
 # Register activity tools
-mcp.tool()(query_activities)
-mcp.tool()(get_activity_details)
-mcp.tool()(get_activity_social)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_activities)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(get_activity_details)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(get_activity_social)
 
 # Register analysis tools
-mcp.tool()(compare_activities)
-mcp.tool()(find_similar_activities)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(compare_activities)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(find_similar_activities)
 
 # Register health & wellness tools
-mcp.tool()(query_health_summary)
-mcp.tool()(query_sleep_data)
-mcp.tool()(query_heart_rate_data)
-mcp.tool()(query_activity_metrics)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_health_summary)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_sleep_data)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_heart_rate_data)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_activity_metrics)
 
 # Register device & gear tools
-mcp.tool()(query_devices)
-mcp.tool()(query_gear)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_devices)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_gear)
 
 # Register user profile tools
-mcp.tool()(get_user_profile)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(get_user_profile)
 
 # Register challenge tools
-mcp.tool()(query_goals_and_records)
-mcp.tool()(query_challenges)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_goals_and_records)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_challenges)
 
 # Register training tools
-mcp.tool()(analyze_training_period)
-mcp.tool()(get_performance_metrics)
-mcp.tool()(get_training_effect)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(analyze_training_period)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(get_performance_metrics)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(get_training_effect)
 
 # Register weight tools
-mcp.tool()(query_weight_data)
-mcp.tool()(manage_weight_data)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_weight_data)
+mcp.tool(
+    annotations={
+        "readOnlyHint": False,
+        "openWorldHint": False,
+        "destructiveHint": False,
+    }
+)(manage_weight_data)
 
 # Register workout tools
-mcp.tool()(manage_workouts)
+mcp.tool(
+    annotations={
+        "readOnlyHint": False,
+        "openWorldHint": False,
+        "destructiveHint": False,
+    }
+)(manage_workouts)
 
 # Register data management tools
-mcp.tool()(log_health_data)
+mcp.tool(
+    annotations={
+        "readOnlyHint": False,
+        "openWorldHint": False,
+        "destructiveHint": False,
+    }
+)(log_health_data)
 
 # Register women's health tools
-mcp.tool()(query_womens_health)
+mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "openWorldHint": False,
+    }
+)(query_womens_health)
 
 
 # ============================================================================
@@ -99,7 +212,12 @@ mcp.tool()(query_womens_health)
 # ============================================================================
 
 
-@mcp.resource("garmin://athlete/profile")
+@mcp.resource(
+    "garmin://athlete/profile",
+    annotations={
+        "readOnlyHint": True,
+    },
+)
 async def athlete_profile_resource() -> str:
     """Provide athlete profile with stats and zones for context-aware clients."""
     # Resources don't go through middleware, so we initialize client directly
@@ -132,7 +250,12 @@ async def athlete_profile_resource() -> str:
     )
 
 
-@mcp.resource("garmin://training/readiness")
+@mcp.resource(
+    "garmin://training/readiness",
+    annotations={
+        "readOnlyHint": True,
+    },
+)
 async def training_readiness_resource() -> str:
     """Provide current training readiness, Body Battery, and recovery status."""
     from .auth import load_config
@@ -155,7 +278,12 @@ async def training_readiness_resource() -> str:
     )
 
 
-@mcp.resource("garmin://health/today")
+@mcp.resource(
+    "garmin://health/today",
+    annotations={
+        "readOnlyHint": True,
+    },
+)
 async def health_today_resource() -> str:
     """Provide today's health snapshot (steps, sleep, stress, HR)."""
     from .auth import load_config
