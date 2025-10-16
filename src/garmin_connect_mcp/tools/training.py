@@ -122,8 +122,8 @@ async def analyze_training_period(
 
             weekly_trends.append(
                 {
-                    "week_start": week_start_str,
-                    "week_end": week_end_str,
+                    "week_start": ResponseBuilder.format_date_with_day(week_start),
+                    "week_end": ResponseBuilder.format_date_with_day(week_end),
                     "activities": len(week_activities),
                     "distance": {
                         "meters": week_distance,
