@@ -23,6 +23,43 @@ class ResponseBuilder:
     """Build structured responses with data, analysis, and metadata."""
 
     @staticmethod
+    def format_date_with_day(dt: datetime | str | None) -> dict[str, str] | None:
+        """Format a date/datetime with explicit day-of-week information.
+
+        Args:
+            dt: datetime object or ISO string or None
+
+        Returns:
+            Dict with datetime, date, day_of_week, and formatted string, or None if input is None
+
+        Examples:
+            >>> ResponseBuilder.format_date_with_day(datetime(2025, 10, 15, 14, 30))
+            {
+                "datetime": "2025-10-15T14:30:00",
+                "date": "2025-10-15",
+                "day_of_week": "Wednesday",
+                "formatted": "Wednesday, October 15, 2025 at 02:30 PM"
+            }
+        """
+        if dt is None:
+            return None
+
+        # Parse the datetime if it's a string, otherwise use it directly
+        if isinstance(dt, str):
+            parsed_dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        else:
+            parsed_dt = dt
+
+        return {
+            "datetime": dt if isinstance(dt, str) else dt.isoformat(),
+            "date": parsed_dt.strftime("%Y-%m-%d"),
+            "day_of_week": parsed_dt.strftime("%A"),  # e.g., "Monday"
+            "formatted": parsed_dt.strftime(
+                "%A, %B %d, %Y at %I:%M %p"
+            ),  # e.g., "Monday, October 15, 2025 at 02:30 PM"
+        }
+
+    @staticmethod
     def build_response(
         data: JSONSerializable,
         analysis: dict[str, Any] | None = None,
@@ -141,13 +178,12 @@ class ResponseBuilder:
                 "formatted_pace": ResponseBuilder._format_pace(mps, unit),
             }
 
-        # Format dates
+        # Format dates with day-of-week information
         for date_field in ["startTimeLocal", "startTimeGMT", "endTimeLocal"]:
             if date_field in activity_dict and activity_dict[date_field]:
-                formatted[date_field] = {
-                    "timestamp": activity_dict[date_field],
-                    "formatted": ResponseBuilder._format_datetime(activity_dict[date_field]),
-                }
+                formatted[date_field] = ResponseBuilder.format_date_with_day(
+                    activity_dict[date_field]
+                )
 
         # Format heart rate
         if "averageHR" in activity_dict and activity_dict["averageHR"] is not None:

@@ -133,7 +133,7 @@ async def query_health_summary(
         # Collect data for each date
         summaries = []
         for date_str in dates:
-            summary = {"date": date_str}
+            summary = {"date": ResponseBuilder.format_date_with_day(date_str)}
 
             # Get base stats
             try:
@@ -277,7 +277,9 @@ async def query_sleep_data(
         for date_str in dates:
             try:
                 data = client.safe_call("get_sleep_data", date_str)
-                sleep_data.append({"date": date_str, "sleep": data})
+                sleep_data.append(
+                    {"date": ResponseBuilder.format_date_with_day(date_str), "sleep": data}
+                )
             except Exception:
                 # Skip dates without sleep data
                 pass
@@ -381,7 +383,7 @@ async def query_heart_rate_data(
         # Collect heart rate data
         hr_data = []
         for date_str in dates:
-            entry = {"date": date_str}
+            entry = {"date": ResponseBuilder.format_date_with_day(date_str)}
 
             # Get HR data
             try:
@@ -485,7 +487,7 @@ async def query_activity_metrics(
         # Collect metrics data
         metrics_data = []
         for date_str in dates:
-            entry = {"date": date_str}
+            entry = {"date": ResponseBuilder.format_date_with_day(date_str)}
 
             # Steps
             if "steps" in requested_metrics:
