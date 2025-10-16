@@ -199,7 +199,7 @@ async def query_activities(
         str | None, "Pagination cursor from previous response (for continuing multi-page queries)"
     ] = None,
     limit: Annotated[
-        int | None,
+        str | int | None,
         "Maximum activities per page (1-50). Default: 10. "
         "Use pagination cursor for large datasets.",
     ] = None,
@@ -245,6 +245,16 @@ async def query_activities(
     assert ctx is not None
     try:
         client = ctx.get_state("client")
+
+        # Coerce limit to int if passed as string
+        if limit is not None and isinstance(limit, str):
+            try:
+                limit = int(limit)
+            except ValueError:
+                return ResponseBuilder.build_error_response(
+                    f"Invalid limit value: '{limit}'. Must be a number between 1 and 50.",
+                    error_type="validation_error",
+                )
 
         # Pattern 1: Specific activity by ID
         if activity_id is not None:

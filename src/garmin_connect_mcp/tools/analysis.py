@@ -256,7 +256,9 @@ async def find_similar_activities(
     criteria: Annotated[
         str, "Similarity criteria: 'type', 'distance', 'elevation', 'duration' (comma-separated)"
     ] = "type,distance",
-    limit: Annotated[int, "Maximum number of similar activities to return"] = 10,
+    limit: Annotated[
+        str | int, "Maximum number of similar activities to return (1-20, default 10)"
+    ] = 10,
     unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
     ctx: Context | None = None,
 ) -> str:
@@ -276,6 +278,23 @@ async def find_similar_activities(
     assert ctx is not None
     try:
         client = ctx.get_state("client")
+
+        # Coerce limit to int if passed as string
+        if isinstance(limit, str):
+            try:
+                limit = int(limit)
+            except ValueError:
+                return ResponseBuilder.build_error_response(
+                    f"Invalid limit value: '{limit}'. Must be a number between 1 and 20.",
+                    error_type="validation_error",
+                )
+
+        # Validate limit range
+        if limit < 1 or limit > 20:
+            return ResponseBuilder.build_error_response(
+                f"Invalid limit: {limit}. Must be between 1 and 20.",
+                error_type="validation_error",
+            )
 
         # Parse criteria
         criteria_list = [c.strip().lower() for c in criteria.split(",")]
