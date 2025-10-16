@@ -20,7 +20,7 @@ async def query_health_summary(
         str | None, "Pagination cursor from previous response (for multi-day ranges)"
     ] = None,
     limit: Annotated[
-        int | None,
+        str | int | None,
         "Maximum days per page (1-30). Default: 7. Use cursor for large date ranges.",
     ] = None,
     include_body_battery: Annotated[bool, "Include Body Battery data"] = True,
@@ -73,6 +73,16 @@ async def query_health_summary(
             except ValueError:
                 return ResponseBuilder.build_error_response(
                     "Invalid pagination cursor",
+                    error_type="validation_error",
+                )
+
+        # Coerce limit to int if passed as string
+        if limit is not None and isinstance(limit, str):
+            try:
+                limit = int(limit)
+            except ValueError:
+                return ResponseBuilder.build_error_response(
+                    f"Invalid limit value: '{limit}'. Must be a number between 1 and 30.",
                     error_type="validation_error",
                 )
 
