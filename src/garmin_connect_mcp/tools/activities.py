@@ -374,6 +374,262 @@ async def query_activities(
         return ResponseBuilder.build_error_response(str(e), "internal_error")
 
 
+def _compute_accurate_splits_from_details(
+    activity_details: dict[str, Any], unit: UnitSystem = "metric"
+) -> dict[str, Any]:
+    """
+    Compute accurate distance splits from time-series data in activity details.
+
+    Uses actual GPS/sensor data to determine exact times when each km/mile was crossed.
+    This provides real split times showing pace variation throughout the activity.
+
+    Args:
+        activity_details: Activity details from get_activity_details() API
+        unit: Unit system - "metric" for 1km splits, "imperial" for 1 mile splits
+
+    Returns:
+        Dictionary with accurate splits information or error details
+    """
+    # Extract metric descriptors and data
+    if "activityDetailMetrics" not in activity_details or "metricDescriptors" not in activity_details:
+        return {"accurate": False, "reason": "No time-series metric data available"}
+
+    metrics_data = activity_details["activityDetailMetrics"]
+    if not metrics_data:
+        return {"accurate": False, "reason": "Empty metrics data"}
+
+    # Find indices for distance and time metrics
+    # Index 12 = sumDistance (cumulative distance in meters)
+    # Index 8 = sumDuration (cumulative time in seconds)
+    DISTANCE_INDEX = 12
+    TIME_INDEX = 8
+
+    # Extract time/distance pairs
+    time_distance_pairs = []
+    for entry in metrics_data:
+        metrics = entry.get("metrics", [])
+        if len(metrics) > max(DISTANCE_INDEX, TIME_INDEX):
+            distance = metrics[DISTANCE_INDEX]
+            time = metrics[TIME_INDEX]
+            if distance is not None and time is not None:
+                time_distance_pairs.append((float(time), float(distance)))
+
+    if len(time_distance_pairs) < 2:
+        return {"accurate": False, "reason": "Insufficient time-series data points"}
+
+    # Sort by time (should already be sorted, but ensure it)
+    time_distance_pairs.sort(key=lambda x: x[0])
+
+    # Determine split distance based on unit
+    split_distance_meters = 1000 if unit == "metric" else 1609.34  # 1 mile
+    split_label = "km" if unit == "metric" else "mi"
+
+    # Get total distance from last data point
+    total_distance = time_distance_pairs[-1][1]
+
+    if total_distance < split_distance_meters:
+        return {"accurate": False, "reason": f"Activity distance less than 1 {split_label}"}
+
+    # Calculate number of complete splits
+    num_complete_splits = int(total_distance // split_distance_meters)
+
+    # Function to interpolate time for a given distance
+    def find_time_at_distance(target_distance: float) -> float:
+        """Find time when target distance was reached using linear interpolation."""
+        for i in range(len(time_distance_pairs) - 1):
+            time1, dist1 = time_distance_pairs[i]
+            time2, dist2 = time_distance_pairs[i + 1]
+
+            if dist1 <= target_distance <= dist2:
+                # Linear interpolation
+                if dist2 - dist1 == 0:
+                    return time1
+                ratio = (target_distance - dist1) / (dist2 - dist1)
+                return time1 + ratio * (time2 - time1)
+
+        # If not found, return last time (shouldn't happen)
+        return time_distance_pairs[-1][0]
+
+    # Calculate splits
+    splits = []
+    prev_time = 0.0
+
+    for split_num in range(1, num_complete_splits + 1):
+        split_distance = split_num * split_distance_meters
+        split_time = find_time_at_distance(split_distance)
+        segment_time = split_time - prev_time
+
+        # Calculate pace for this segment
+        pace_seconds = segment_time  # Time for 1km or 1 mile
+        pace_minutes = int(pace_seconds // 60)
+        pace_secs = int(pace_seconds % 60)
+
+        # Format distance based on unit
+        if unit == "metric":
+            distance_display = split_distance_meters / 1000  # km
+        else:
+            distance_display = split_distance_meters / 1609.34  # miles
+
+        splits.append({
+            "split_number": split_num,
+            "distance_meters": split_distance_meters,
+            "distance_formatted": f"{distance_display:.2f} {split_label}",
+            "time_seconds": segment_time,
+            "cumulative_time_seconds": split_time,
+            "time_formatted": ResponseBuilder._format_duration(segment_time),
+            "pace_formatted": f"{pace_minutes}:{pace_secs:02d} /{split_label}",
+        })
+
+        prev_time = split_time
+
+    # Add partial split if there's significant remaining distance
+    remaining_distance = total_distance - (num_complete_splits * split_distance_meters)
+    if remaining_distance >= 100:  # Only if >= 100m
+        final_time = time_distance_pairs[-1][0]
+        partial_segment_time = final_time - prev_time
+
+        # Calculate pace (extrapolate to full km/mile)
+        if remaining_distance > 0:
+            pace_per_full_unit = (partial_segment_time / remaining_distance) * split_distance_meters
+            pace_minutes = int(pace_per_full_unit // 60)
+            pace_secs = int(pace_per_full_unit % 60)
+            pace_str = f"{pace_minutes}:{pace_secs:02d} /{split_label}"
+        else:
+            pace_str = "N/A"
+
+        # Format partial distance
+        if unit == "metric":
+            partial_distance_display = remaining_distance / 1000  # km
+        else:
+            partial_distance_display = remaining_distance / 1609.34  # miles
+
+        splits.append({
+            "split_number": num_complete_splits + 1,
+            "distance_meters": remaining_distance,
+            "distance_formatted": f"{partial_distance_display:.2f} {split_label}",
+            "time_seconds": partial_segment_time,
+            "cumulative_time_seconds": final_time,
+            "time_formatted": ResponseBuilder._format_duration(partial_segment_time),
+            "pace_formatted": pace_str,
+            "partial": True,
+        })
+
+    # Calculate average pace
+    total_time = time_distance_pairs[-1][0]
+    avg_pace_per_km = (total_time / total_distance) * 1000
+
+    return {
+        "accurate": True,
+        "note": f"Accurate {split_label} splits computed from GPS/sensor data (1398 data points)",
+        "average_pace": {
+            "seconds_per_km": avg_pace_per_km,
+            "formatted": ResponseBuilder._format_pace(total_distance / total_time, unit),
+        },
+        "splits": splits,
+        "total_distance_meters": total_distance,
+        "total_duration_seconds": total_time,
+        "data_points": len(time_distance_pairs),
+    }
+
+
+def _compute_estimated_splits(activity: dict[str, Any], unit: UnitSystem = "metric") -> dict[str, Any]:
+    """
+    Compute estimated distance splits when activity has only 1 lap.
+
+    Computes 1km splits for metric units or 1 mile splits for imperial units.
+    This provides estimated split times based on average pace,
+    useful when the watch wasn't configured for auto-lap.
+
+    Args:
+        activity: Activity data containing distance and duration
+        unit: Unit system - "metric" for 1km splits, "imperial" for 1 mile splits
+
+    Returns:
+        Dictionary with estimated splits information
+    """
+    distance_meters = activity.get("distance")
+    duration_seconds = activity.get("duration")
+
+    if not distance_meters or not duration_seconds:
+        return {"estimated": False, "reason": "Missing distance or duration data"}
+
+    # Only compute for activities >= 1km
+    if distance_meters < 1000:
+        return {"estimated": False, "reason": "Activity distance less than 1km"}
+
+    # Calculate average pace (seconds per km)
+    avg_pace_per_km = (duration_seconds / distance_meters) * 1000
+
+    # Determine split distance based on unit system
+    split_distance_meters = 1000 if unit == "metric" else 1609.34  # 1 mile
+    split_label = "km" if unit == "metric" else "mi"
+
+    # Calculate number of complete splits
+    num_complete_splits = int(distance_meters // split_distance_meters)
+
+    if num_complete_splits == 0:
+        return {"estimated": False, "reason": f"Activity distance less than 1 {split_label}"}
+
+    # Calculate remaining distance
+    remaining_distance = distance_meters - (num_complete_splits * split_distance_meters)
+
+    # Build estimated splits
+    estimated_splits = []
+    for i in range(1, num_complete_splits + 1):
+        split_time_seconds = avg_pace_per_km * (split_distance_meters / 1000)
+
+        # Format pace
+        minutes = int(split_time_seconds // 60)
+        seconds = int(split_time_seconds % 60)
+
+        # Format distance based on unit
+        if unit == "metric":
+            distance_display = split_distance_meters / 1000  # km
+        else:
+            distance_display = split_distance_meters / 1609.34  # miles
+
+        estimated_splits.append({
+            "split_number": i,
+            "distance_meters": split_distance_meters,
+            "distance_formatted": f"{distance_display:.2f} {split_label}",
+            "time_seconds": split_time_seconds,
+            "time_formatted": ResponseBuilder._format_duration(split_time_seconds),
+            "pace_formatted": f"{minutes}:{seconds:02d} /{split_label}",
+        })
+
+    # Add partial split if there's remaining distance
+    if remaining_distance >= 100:  # Only include if >= 100m
+        partial_split_time = avg_pace_per_km * (remaining_distance / 1000)
+
+        # Format partial distance based on unit
+        if unit == "metric":
+            partial_distance_display = remaining_distance / 1000  # km
+        else:
+            partial_distance_display = remaining_distance / 1609.34  # miles
+
+        estimated_splits.append({
+            "split_number": num_complete_splits + 1,
+            "distance_meters": remaining_distance,
+            "distance_formatted": f"{partial_distance_display:.2f} {split_label}",
+            "time_seconds": partial_split_time,
+            "time_formatted": ResponseBuilder._format_duration(partial_split_time),
+            "pace_formatted": f"{int(avg_pace_per_km // 60)}:{int(avg_pace_per_km % 60):02d} /{split_label} (avg)",
+            "partial": True,
+        })
+
+    return {
+        "estimated": True,
+        "note": f"Estimated {split_label} splits based on average pace (activity had only 1 lap)",
+        "average_pace": {
+            "seconds_per_km": avg_pace_per_km,
+            "formatted": ResponseBuilder._format_pace(distance_meters / duration_seconds, unit),
+        },
+        "splits": estimated_splits,
+        "total_distance_meters": distance_meters,
+        "total_duration_seconds": duration_seconds,
+    }
+
+
 async def get_activity_details(
     activity_id: Annotated[int, "Activity ID"],
     include_splits: Annotated[bool, "Include lap/split data"] = True,
@@ -392,6 +648,9 @@ async def get_activity_details(
 
     By default, includes splits, weather, HR zones, and gear. Exercise sets
     are only included when explicitly requested (useful for strength training).
+
+    When include_splits=True and the activity has only 1 lap, estimated km/mile
+    splits will be computed based on average pace.
     """
     assert ctx is not None
     try:
@@ -419,6 +678,28 @@ async def get_activity_details(
             try:
                 splits = client.safe_call("get_activity_splits", activity_id)
                 details["splits"] = splits
+
+                # If only 1 lap, try to compute accurate splits from detailed time-series data
+                if splits and "lapDTOs" in splits and len(splits["lapDTOs"]) == 1:
+                    # Try to get accurate splits from activity details API
+                    try:
+                        activity_details = client.safe_call("get_activity_details", activity_id, maxchart=2000)
+                        accurate_splits = _compute_accurate_splits_from_details(activity_details, unit)
+
+                        if accurate_splits.get("accurate"):
+                            # We got accurate splits from GPS/sensor data!
+                            details["computed_splits"] = accurate_splits
+                        else:
+                            # Fall back to estimated even-pace splits
+                            estimated_splits = _compute_estimated_splits(activity, unit)
+                            if estimated_splits.get("estimated"):
+                                details["computed_splits"] = estimated_splits
+                    except Exception:
+                        # If details API fails, fall back to estimated splits
+                        estimated_splits = _compute_estimated_splits(activity, unit)
+                        if estimated_splits.get("estimated"):
+                            details["computed_splits"] = estimated_splits
+
             except Exception:
                 details["splits"] = None
 
@@ -458,6 +739,18 @@ async def get_activity_details(
             insights.append("Heart rate zone distribution available")
         if details.get("splits"):
             insights.append("Lap/split data available for pace analysis")
+        if details.get("computed_splits"):
+            computed = details["computed_splits"]
+            split_count = len(computed.get("splits", []))
+            split_unit = "km" if unit == "metric" else "mile"
+
+            if computed.get("accurate"):
+                data_points = computed.get("data_points", 0)
+                insights.append(
+                    f"Accurate {split_count} × 1{split_unit} splits computed from {data_points} GPS/sensor data points"
+                )
+            elif computed.get("estimated"):
+                insights.append(f"Estimated {split_count} × 1{split_unit} splits computed from average pace")
         if details.get("gear"):
             insights.append("Gear information recorded for this activity")
 
