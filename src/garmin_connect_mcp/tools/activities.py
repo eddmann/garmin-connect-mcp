@@ -300,13 +300,24 @@ async def query_activities(
             parsed_date = parse_date_string(date)
             date_str = parsed_date.strftime("%Y-%m-%d")
 
-            activities = client.safe_call("get_activities_fordate", date_str)
+            activities = client.safe_call(
+                "get_activities_by_date",
+                date_str,
+                date_str,
+                activity_type if activity_type else None,
+            )
 
             if not activities:
+                type_msg = f" of type '{activity_type}'" if activity_type else ""
                 return ResponseBuilder.build_response(
                     data={"activities": [], "count": 0},
-                    metadata={"query_type": "activity_list", "date": date_str},
-                    analysis={"insights": [f"No activities found for {date_str}"]},
+                    metadata={
+                        "query_type": "activity_list",
+                        "date": date_str,
+                        "activity_type": activity_type or "all",
+                        "unit": unit,
+                    },
+                    analysis={"insights": [f"No activities found{type_msg} for {date_str}"]},
                 )
 
             formatted_activities = [
@@ -318,7 +329,12 @@ async def query_activities(
 
             return ResponseBuilder.build_response(
                 data={"activities": formatted_activities, "aggregated": aggregated},
-                metadata={"query_type": "activity_list", "date": date_str, "unit": unit},
+                metadata={
+                    "query_type": "activity_list",
+                    "date": date_str,
+                    "activity_type": activity_type or "all",
+                    "unit": unit,
+                },
             )
 
         # Pattern 4: Pagination query (general pagination using Garmin's start/limit API)
