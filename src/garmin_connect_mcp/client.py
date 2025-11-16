@@ -97,7 +97,7 @@ def init_garmin_client(config: GarminConfig) -> Garmin | None:
                 prompt_mfa=prompt_for_mfa
             )
 
-            # Attempt credential-based login (no tokenstore parameter for initial auth)
+            # Attempt credential-based login (do not pass tokenstore to login(); tokens will be saved after successful authentication)
             garmin.login()
 
             # Save tokens for future use
