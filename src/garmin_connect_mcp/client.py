@@ -84,24 +84,21 @@ def init_garmin_client(config: GarminConfig) -> Garmin | None:
             # Token login failed, try credential login
             print(f"Token login failed: {e}. Attempting credential-based login...", file=sys.stderr)
 
-            # Create Garmin client with credentials
-            garmin = Garmin(config.garmin_email, config.garmin_password)
+            # Define MFA prompt function
+            def prompt_for_mfa() -> str:
+                """Prompt for MFA code via stdin."""
+                print("MFA one-time code: ", end="", flush=True, file=sys.stderr)
+                return input()
 
-            # Attempt login
-            result = garmin.login()
+            # Create Garmin client with credentials and MFA handler
+            garmin = Garmin(
+                email=config.garmin_email,
+                password=config.garmin_password,
+                prompt_mfa=prompt_for_mfa
+            )
 
-            # Check if MFA is needed
-            if result and len(result) >= 2:
-                oauth1_token, oauth2_token = result
-
-                # Check if MFA is required (oauth1_token will have mfa_token)
-                mfa_token = getattr(oauth1_token, "mfa_token", None)
-                if mfa_token:
-                    print("MFA required. Please enter your MFA code.", file=sys.stderr)
-                    mfa_code = input("MFA one-time code: ")
-
-                    # Resume login with MFA code
-                    garmin.resume_login(result, mfa_code)
+            # Attempt credential-based login (no tokenstore parameter for initial auth)
+            garmin.login()
 
             # Save tokens for future use
             garmin.garth.dump(tokenstore)
