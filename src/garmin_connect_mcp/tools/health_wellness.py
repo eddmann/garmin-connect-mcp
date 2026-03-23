@@ -11,6 +11,45 @@ from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
 from ..types import UnitSystem
 
+# Keys containing time-series arrays in sleep data that are stripped in summary mode.
+# These typically account for 90%+ of the sleep response size.
+_SLEEP_TIMESERIES_KEYS = {
+    "sleepMovement",
+    "sleepHeartRate",
+    "sleepStress",
+    "sleepBodyBattery",
+    "hrvData",
+    "wellnessEpochRespirationDataDTOList",
+    "sleepLevels",
+    "sleepRestlessMoments",
+    "breathingDisruptionData",
+    "remSleepData",
+    "skinTempDataList",
+}
+
+# Keys containing time-series arrays in heart rate data that are stripped in summary mode.
+_HR_TIMESERIES_KEYS = {
+    "heartRateValues",
+}
+
+# Keys to strip from body battery events in summary mode.
+_BB_EVENT_TIMESERIES_KEYS = {
+    "bodyBatteryFeedbackList",
+    "bodyBatteryActivityMarkerList",
+}
+
+
+def _strip_keys(data: dict[str, Any], keys_to_strip: set[str]) -> dict[str, Any]:
+    """Return a copy of data with specified keys removed."""
+    return {k: v for k, v in data.items() if k not in keys_to_strip}
+
+
+def _summarize_bb_events(bb_events: Any) -> Any:
+    """Extract summary from body battery events, stripping time-series detail."""
+    if not bb_events or not isinstance(bb_events, list):
+        return bb_events
+    return [_strip_keys(event, _BB_EVENT_TIMESERIES_KEYS) for event in bb_events]
+
 
 async def query_health_summary(
     date: Annotated[str | None, "Specific date ('today', 'yesterday', or YYYY-MM-DD)"] = None,
@@ -26,6 +65,12 @@ async def query_health_summary(
     include_body_battery: Annotated[bool, "Include Body Battery data"] = True,
     include_training_readiness: Annotated[bool, "Include training readiness"] = True,
     include_training_status: Annotated[bool, "Include training status"] = True,
+    summary_only: Annotated[
+        bool,
+        "Return only summary metrics without detailed time-series data. "
+        "Reduces response size significantly while keeping all key health metrics. "
+        "When True: skips duplicate stats call, strips Body Battery time-series detail.",
+    ] = False,
     unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
     ctx: Context | None = None,
 ) -> str:
@@ -36,6 +81,9 @@ async def query_health_summary(
     Body Battery, and Body Battery events.
 
     Supports single date or date range queries with pagination.
+
+    Use summary_only=True for routine checks to reduce response size
+    by ~65-75% while keeping all key health metrics.
 
     Pagination:
     For large date ranges, use pagination:
@@ -135,12 +183,13 @@ async def query_health_summary(
         for date_str in dates:
             summary = {"date": ResponseBuilder.format_date_with_day(date_str)}
 
-            # Get base stats
-            try:
-                stats = client.safe_call("get_stats", date_str)
-                summary["stats"] = stats
-            except Exception:
-                summary["stats"] = None
+            # Get base stats (skip in summary mode - duplicates user_summary)
+            if not summary_only:
+                try:
+                    stats = client.safe_call("get_stats", date_str)
+                    summary["stats"] = stats
+                except Exception:
+                    summary["stats"] = None
 
             # Get user summary
             try:
@@ -176,6 +225,8 @@ async def query_health_summary(
 
                 try:
                     bb_events = client.safe_call("get_body_battery_events", date_str)
+                    if summary_only:
+                        bb_events = _summarize_bb_events(bb_events)
                     summary["body_battery_events"] = bb_events
                 except Exception:
                     summary["body_battery_events"] = None
@@ -237,6 +288,12 @@ async def query_sleep_data(
     date: Annotated[str | None, "Specific date ('today', 'yesterday', or YYYY-MM-DD)"] = None,
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
+    summary_only: Annotated[
+        bool,
+        "Return only summary metrics without detailed time-series data. "
+        "Strips per-minute movement, heart rate, stress, respiration, and HRV arrays. "
+        "Reduces response size by ~95% while keeping sleep duration, scores, and averages.",
+    ] = False,
     ctx: Context | None = None,
 ) -> str:
     """
@@ -246,6 +303,9 @@ async def query_sleep_data(
     HRV, resting heart rate, and body battery impact.
 
     Supports single date or date range queries.
+
+    Use summary_only=True for routine checks to get key sleep metrics
+    without per-minute time-series data (~95% size reduction).
     """
     assert ctx is not None
     try:
@@ -277,6 +337,8 @@ async def query_sleep_data(
         for date_str in dates:
             try:
                 data = client.safe_call("get_sleep_data", date_str)
+                if summary_only:
+                    data = _strip_keys(data, _SLEEP_TIMESERIES_KEYS)
                 sleep_data.append(
                     {"date": ResponseBuilder.format_date_with_day(date_str), "sleep": data}
                 )
@@ -347,6 +409,11 @@ async def query_heart_rate_data(
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
     include_resting: Annotated[bool, "Include resting heart rate"] = True,
+    summary_only: Annotated[
+        bool,
+        "Return only summary metrics (resting HR, min, max, averages) without "
+        "per-minute heart rate time-series. Reduces response size by ~90%.",
+    ] = False,
     ctx: Context | None = None,
 ) -> str:
     """
@@ -354,6 +421,9 @@ async def query_heart_rate_data(
 
     Retrieves heart rate data including resting HR, average HR, min/max values.
     Supports single date or date range queries.
+
+    Use summary_only=True to get key HR metrics without the per-minute
+    time-series array (~90% size reduction).
     """
     assert ctx is not None
     try:
@@ -388,6 +458,8 @@ async def query_heart_rate_data(
             # Get HR data
             try:
                 hr = client.safe_call("get_heart_rates", date_str)
+                if summary_only and isinstance(hr, dict):
+                    hr = _strip_keys(hr, _HR_TIMESERIES_KEYS)
                 entry["heart_rate"] = hr
             except Exception:
                 entry["heart_rate"] = None

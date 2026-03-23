@@ -1,6 +1,6 @@
 """Weight management tools for Garmin Connect MCP server."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastmcp import Context
 
@@ -8,17 +8,49 @@ from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
 
+# Fields to keep from weight entries in summary mode.
+_WEIGHT_SUMMARY_KEYS = {
+    "samplePk",
+    "date",
+    "calendarDate",
+    "weight",
+    "bmi",
+    "bodyFat",
+    "bodyWater",
+    "boneMass",
+    "muscleMass",
+}
+
+
+def _summarize_weigh_ins(weigh_ins: Any) -> Any:
+    """Strip device metadata from weight entries in summary mode."""
+    if not isinstance(weigh_ins, list):
+        return weigh_ins
+    return [
+        {k: v for k, v in entry.items() if k in _WEIGHT_SUMMARY_KEYS}
+        for entry in weigh_ins
+        if isinstance(entry, dict)
+    ]
+
 
 async def query_weight_data(
     date: Annotated[str | None, "Specific date ('today', 'yesterday', or YYYY-MM-DD)"] = None,
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
+    summary_only: Annotated[
+        bool,
+        "Return only key weight fields (weight, BMI, date) without "
+        "device metadata and source details. Included for API consistency.",
+    ] = False,
     ctx: Context | None = None,
 ) -> str:
     """
     Query weight data.
 
     Get weight measurements for a specific date or date range.
+
+    Use summary_only=True to get streamlined weight entries
+    without device metadata and source details.
     """
     assert ctx is not None
     try:
@@ -29,12 +61,16 @@ async def query_weight_data(
             parsed_date = parse_date_string(date)
             date_str = parsed_date.strftime("%Y-%m-%d")
             weight_data = client.safe_call("get_daily_weigh_ins", date_str)
+            if summary_only:
+                weight_data = _summarize_weigh_ins(weight_data)
             return ResponseBuilder.build_response(
                 data={"weigh_ins": weight_data, "date": date_str},
                 metadata={"query_type": "single_date", "date": date_str},
             )
         elif start_date and end_date:
             weight_data = client.safe_call("get_weigh_ins", start_date, end_date)
+            if summary_only:
+                weight_data = _summarize_weigh_ins(weight_data)
             return ResponseBuilder.build_response(
                 data={"weigh_ins": weight_data},
                 metadata={"query_type": "range", "start_date": start_date, "end_date": end_date},
@@ -43,6 +79,8 @@ async def query_weight_data(
             # Default to today
             date_str = parse_date_string("today").strftime("%Y-%m-%d")
             weight_data = client.safe_call("get_daily_weigh_ins", date_str)
+            if summary_only:
+                weight_data = _summarize_weigh_ins(weight_data)
             return ResponseBuilder.build_response(
                 data={"weigh_ins": weight_data, "date": date_str},
                 metadata={"query_type": "single_date", "date": date_str},

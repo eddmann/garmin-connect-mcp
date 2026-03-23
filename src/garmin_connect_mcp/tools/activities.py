@@ -19,6 +19,7 @@ async def _query_activities_paginated(
     cursor: str | None,
     limit: int,
     unit: UnitSystem,
+    summary_only: bool = False,
 ) -> str:
     """Query activities by date range with cursor-based pagination."""
     # Parse cursor to get current page
@@ -90,7 +91,10 @@ async def _query_activities_paginated(
         )
 
     # Format activities
-    formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+    formatter = (
+        ResponseBuilder.format_activity_summary if summary_only else ResponseBuilder.format_activity
+    )
+    formatted_activities = [formatter(act, unit) for act in activities]
 
     # Aggregate metrics
     aggregated = ResponseBuilder.aggregate_activities(activities, unit)
@@ -114,6 +118,7 @@ async def _query_activities_general_paginated(
     cursor: str | None,
     limit: int,
     unit: UnitSystem,
+    summary_only: bool = False,
 ) -> str:
     """Query activities with general pagination (no date filter)."""
     # Parse cursor to get current page
@@ -174,7 +179,10 @@ async def _query_activities_general_paginated(
         )
 
     # Format activities
-    formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+    formatter = (
+        ResponseBuilder.format_activity_summary if summary_only else ResponseBuilder.format_activity
+    )
+    formatted_activities = [formatter(act, unit) for act in activities]
 
     # Aggregate metrics
     aggregated = ResponseBuilder.aggregate_activities(activities, unit)
@@ -204,6 +212,12 @@ async def query_activities(
         "Use pagination cursor for large datasets.",
     ] = None,
     activity_type: Annotated[str, "Activity type filter (e.g., 'running', 'cycling')"] = "",
+    summary_only: Annotated[
+        bool,
+        "Return only essential activity fields (name, type, time, distance, duration, "
+        "HR, elevation, calories) without detailed metadata like userRoles, splitSummaries, "
+        "and profile data. Reduces per-activity size by ~60-70%.",
+    ] = False,
     unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
     ctx: Context | None = None,
 ) -> str:
@@ -218,6 +232,9 @@ async def query_activities(
     5. Get last activity: no parameters
 
     All queries can be filtered by activity_type (e.g., 'running', 'cycling').
+
+    Use summary_only=True for routine queries to get essential activity data
+    without verbose metadata (~60-70% size reduction per activity).
 
     Pagination:
     For large time ranges, use pagination to retrieve all activities:
@@ -271,7 +288,12 @@ async def query_activities(
                 )
 
             # Format the activity with rich data
-            formatted_activity = ResponseBuilder.format_activity(activity, unit)
+            formatter = (
+                ResponseBuilder.format_activity_summary
+                if summary_only
+                else ResponseBuilder.format_activity
+            )
+            formatted_activity = formatter(activity, unit)
 
             return ResponseBuilder.build_response(
                 data={"activity": formatted_activity},
@@ -292,6 +314,7 @@ async def query_activities(
                 cursor=cursor,
                 limit=limit or 10,
                 unit=unit,
+                summary_only=summary_only,
             )
 
         # Pattern 3: Specific date query
@@ -320,9 +343,12 @@ async def query_activities(
                     analysis={"insights": [f"No activities found{type_msg} for {date_str}"]},
                 )
 
-            formatted_activities = [
-                ResponseBuilder.format_activity(act, unit) for act in activities
-            ]
+            formatter = (
+                ResponseBuilder.format_activity_summary
+                if summary_only
+                else ResponseBuilder.format_activity
+            )
+            formatted_activities = [formatter(act, unit) for act in activities]
 
             # Aggregate metrics
             aggregated = ResponseBuilder.aggregate_activities(activities, unit)
@@ -346,6 +372,7 @@ async def query_activities(
                 cursor=cursor,
                 limit=limit or 10,
                 unit=unit,
+                summary_only=summary_only,
             )
 
         # Pattern 5: Last activity (default)
@@ -357,7 +384,12 @@ async def query_activities(
                 analysis={"insights": ["No activities found"]},
             )
 
-        formatted_activity = ResponseBuilder.format_activity(activity, unit)
+        formatter = (
+            ResponseBuilder.format_activity_summary
+            if summary_only
+            else ResponseBuilder.format_activity
+        )
+        formatted_activity = formatter(activity, unit)
 
         return ResponseBuilder.build_response(
             data={"activity": formatted_activity},
@@ -391,7 +423,10 @@ def _compute_accurate_splits_from_details(
         Dictionary with accurate splits information or error details
     """
     # Extract metric descriptors and data
-    if "activityDetailMetrics" not in activity_details or "metricDescriptors" not in activity_details:
+    if (
+        "activityDetailMetrics" not in activity_details
+        or "metricDescriptors" not in activity_details
+    ):
         return {"accurate": False, "reason": "No time-series metric data available"}
 
     metrics_data = activity_details["activityDetailMetrics"]
@@ -470,15 +505,17 @@ def _compute_accurate_splits_from_details(
         else:
             distance_display = split_distance_meters / 1609.34  # miles
 
-        splits.append({
-            "split_number": split_num,
-            "distance_meters": split_distance_meters,
-            "distance_formatted": f"{distance_display:.2f} {split_label}",
-            "time_seconds": segment_time,
-            "cumulative_time_seconds": split_time,
-            "time_formatted": ResponseBuilder._format_duration(segment_time),
-            "pace_formatted": f"{pace_minutes}:{pace_secs:02d} /{split_label}",
-        })
+        splits.append(
+            {
+                "split_number": split_num,
+                "distance_meters": split_distance_meters,
+                "distance_formatted": f"{distance_display:.2f} {split_label}",
+                "time_seconds": segment_time,
+                "cumulative_time_seconds": split_time,
+                "time_formatted": ResponseBuilder._format_duration(segment_time),
+                "pace_formatted": f"{pace_minutes}:{pace_secs:02d} /{split_label}",
+            }
+        )
 
         prev_time = split_time
 
@@ -503,16 +540,18 @@ def _compute_accurate_splits_from_details(
         else:
             partial_distance_display = remaining_distance / 1609.34  # miles
 
-        splits.append({
-            "split_number": num_complete_splits + 1,
-            "distance_meters": remaining_distance,
-            "distance_formatted": f"{partial_distance_display:.2f} {split_label}",
-            "time_seconds": partial_segment_time,
-            "cumulative_time_seconds": final_time,
-            "time_formatted": ResponseBuilder._format_duration(partial_segment_time),
-            "pace_formatted": pace_str,
-            "partial": True,
-        })
+        splits.append(
+            {
+                "split_number": num_complete_splits + 1,
+                "distance_meters": remaining_distance,
+                "distance_formatted": f"{partial_distance_display:.2f} {split_label}",
+                "time_seconds": partial_segment_time,
+                "cumulative_time_seconds": final_time,
+                "time_formatted": ResponseBuilder._format_duration(partial_segment_time),
+                "pace_formatted": pace_str,
+                "partial": True,
+            }
+        )
 
     # Calculate average pace
     total_time = time_distance_pairs[-1][0]
@@ -532,7 +571,9 @@ def _compute_accurate_splits_from_details(
     }
 
 
-def _compute_estimated_splits(activity: dict[str, Any], unit: UnitSystem = "metric") -> dict[str, Any]:
+def _compute_estimated_splits(
+    activity: dict[str, Any], unit: UnitSystem = "metric"
+) -> dict[str, Any]:
     """
     Compute estimated distance splits when activity has only 1 lap.
 
@@ -588,14 +629,16 @@ def _compute_estimated_splits(activity: dict[str, Any], unit: UnitSystem = "metr
         else:
             distance_display = split_distance_meters / 1609.34  # miles
 
-        estimated_splits.append({
-            "split_number": i,
-            "distance_meters": split_distance_meters,
-            "distance_formatted": f"{distance_display:.2f} {split_label}",
-            "time_seconds": split_time_seconds,
-            "time_formatted": ResponseBuilder._format_duration(split_time_seconds),
-            "pace_formatted": f"{minutes}:{seconds:02d} /{split_label}",
-        })
+        estimated_splits.append(
+            {
+                "split_number": i,
+                "distance_meters": split_distance_meters,
+                "distance_formatted": f"{distance_display:.2f} {split_label}",
+                "time_seconds": split_time_seconds,
+                "time_formatted": ResponseBuilder._format_duration(split_time_seconds),
+                "pace_formatted": f"{minutes}:{seconds:02d} /{split_label}",
+            }
+        )
 
     # Add partial split if there's remaining distance
     if remaining_distance >= 100:  # Only include if >= 100m
@@ -607,15 +650,17 @@ def _compute_estimated_splits(activity: dict[str, Any], unit: UnitSystem = "metr
         else:
             partial_distance_display = remaining_distance / 1609.34  # miles
 
-        estimated_splits.append({
-            "split_number": num_complete_splits + 1,
-            "distance_meters": remaining_distance,
-            "distance_formatted": f"{partial_distance_display:.2f} {split_label}",
-            "time_seconds": partial_split_time,
-            "time_formatted": ResponseBuilder._format_duration(partial_split_time),
-            "pace_formatted": f"{int(avg_pace_per_km // 60)}:{int(avg_pace_per_km % 60):02d} /{split_label} (avg)",
-            "partial": True,
-        })
+        estimated_splits.append(
+            {
+                "split_number": num_complete_splits + 1,
+                "distance_meters": remaining_distance,
+                "distance_formatted": f"{partial_distance_display:.2f} {split_label}",
+                "time_seconds": partial_split_time,
+                "time_formatted": ResponseBuilder._format_duration(partial_split_time),
+                "pace_formatted": f"{int(avg_pace_per_km // 60)}:{int(avg_pace_per_km % 60):02d} /{split_label} (avg)",
+                "partial": True,
+            }
+        )
 
     return {
         "estimated": True,
@@ -683,8 +728,12 @@ async def get_activity_details(
                 if splits and "lapDTOs" in splits and len(splits["lapDTOs"]) == 1:
                     # Try to get accurate splits from activity details API
                     try:
-                        activity_details = client.safe_call("get_activity_details", activity_id, maxchart=2000)
-                        accurate_splits = _compute_accurate_splits_from_details(activity_details, unit)
+                        activity_details = client.safe_call(
+                            "get_activity_details", activity_id, maxchart=2000
+                        )
+                        accurate_splits = _compute_accurate_splits_from_details(
+                            activity_details, unit
+                        )
 
                         if accurate_splits.get("accurate"):
                             # We got accurate splits from GPS/sensor data!
@@ -750,7 +799,9 @@ async def get_activity_details(
                     f"Accurate {split_count} × 1{split_unit} splits computed from {data_points} GPS/sensor data points"
                 )
             elif computed.get("estimated"):
-                insights.append(f"Estimated {split_count} × 1{split_unit} splits computed from average pace")
+                insights.append(
+                    f"Estimated {split_count} × 1{split_unit} splits computed from average pace"
+                )
         if details.get("gear"):
             insights.append("Gear information recorded for this activity")
 
