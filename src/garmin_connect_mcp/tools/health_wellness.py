@@ -20,6 +20,7 @@ _SLEEP_TIMESERIES_KEYS = {
     "sleepBodyBattery",
     "hrvData",
     "wellnessEpochRespirationDataDTOList",
+    "wellnessEpochRespirationAveragesList",
     "sleepLevels",
     "sleepRestlessMoments",
     "breathingDisruptionData",

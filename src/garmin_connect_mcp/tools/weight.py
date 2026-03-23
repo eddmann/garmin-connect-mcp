@@ -22,15 +22,35 @@ _WEIGHT_SUMMARY_KEYS = {
 }
 
 
+def _summarize_weight_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Keep only essential fields from a single weight measurement."""
+    return {k: v for k, v in entry.items() if k in _WEIGHT_SUMMARY_KEYS}
+
+
 def _summarize_weigh_ins(weigh_ins: Any) -> Any:
-    """Strip device metadata from weight entries in summary mode."""
-    if not isinstance(weigh_ins, list):
-        return weigh_ins
-    return [
-        {k: v for k, v in entry.items() if k in _WEIGHT_SUMMARY_KEYS}
-        for entry in weigh_ins
-        if isinstance(entry, dict)
-    ]
+    """Strip device metadata from weight data in summary mode.
+
+    Handles both flat lists of entries and the nested dailyWeightSummaries structure.
+    """
+    if isinstance(weigh_ins, list):
+        return [_summarize_weight_entry(e) for e in weigh_ins if isinstance(e, dict)]
+
+    if isinstance(weigh_ins, dict):
+        result = {}
+        # Handle dailyWeightSummaries structure
+        if "dailyWeightSummaries" in weigh_ins:
+            summaries = []
+            for day in weigh_ins["dailyWeightSummaries"]:
+                summary = {"summaryDate": day.get("summaryDate")}
+                if "latestWeight" in day and isinstance(day["latestWeight"], dict):
+                    summary["latestWeight"] = _summarize_weight_entry(day["latestWeight"])
+                summaries.append(summary)
+            result["dailyWeightSummaries"] = summaries
+        if "totalAverage" in weigh_ins and isinstance(weigh_ins["totalAverage"], dict):
+            result["totalAverage"] = _summarize_weight_entry(weigh_ins["totalAverage"])
+        return result
+
+    return weigh_ins
 
 
 async def query_weight_data(
