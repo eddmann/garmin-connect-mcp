@@ -11,6 +11,13 @@ from ..time_utils import parse_date_string
 from ..types import UnitSystem
 
 
+def _activity_formatter(summary_only: bool):
+    """Return the appropriate activity formatter based on summary mode."""
+    return (
+        ResponseBuilder.format_activity_summary if summary_only else ResponseBuilder.format_activity
+    )
+
+
 async def _query_activities_paginated(
     client: GarminClientWrapper,
     start_date: str,
@@ -91,9 +98,7 @@ async def _query_activities_paginated(
         )
 
     # Format activities
-    formatter = (
-        ResponseBuilder.format_activity_summary if summary_only else ResponseBuilder.format_activity
-    )
+    formatter = _activity_formatter(summary_only)
     formatted_activities = [formatter(act, unit) for act in activities]
 
     # Aggregate metrics
@@ -179,9 +184,7 @@ async def _query_activities_general_paginated(
         )
 
     # Format activities
-    formatter = (
-        ResponseBuilder.format_activity_summary if summary_only else ResponseBuilder.format_activity
-    )
+    formatter = _activity_formatter(summary_only)
     formatted_activities = [formatter(act, unit) for act in activities]
 
     # Aggregate metrics
@@ -288,11 +291,7 @@ async def query_activities(
                 )
 
             # Format the activity with rich data
-            formatter = (
-                ResponseBuilder.format_activity_summary
-                if summary_only
-                else ResponseBuilder.format_activity
-            )
+            formatter = _activity_formatter(summary_only)
             formatted_activity = formatter(activity, unit)
 
             return ResponseBuilder.build_response(
@@ -343,11 +342,7 @@ async def query_activities(
                     analysis={"insights": [f"No activities found{type_msg} for {date_str}"]},
                 )
 
-            formatter = (
-                ResponseBuilder.format_activity_summary
-                if summary_only
-                else ResponseBuilder.format_activity
-            )
+            formatter = _activity_formatter(summary_only)
             formatted_activities = [formatter(act, unit) for act in activities]
 
             # Aggregate metrics

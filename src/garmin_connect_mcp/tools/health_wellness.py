@@ -7,7 +7,7 @@ from fastmcp import Context
 
 from ..client import GarminAPIError
 from ..pagination import build_pagination_info, decode_cursor
-from ..response_builder import ResponseBuilder
+from ..response_builder import ResponseBuilder, strip_keys
 from ..time_utils import parse_date_string
 from ..types import UnitSystem
 
@@ -39,16 +39,11 @@ _BB_EVENT_TIMESERIES_KEYS = {
 }
 
 
-def _strip_keys(data: dict[str, Any], keys_to_strip: set[str]) -> dict[str, Any]:
-    """Return a copy of data with specified keys removed."""
-    return {k: v for k, v in data.items() if k not in keys_to_strip}
-
-
 def _summarize_bb_events(bb_events: Any) -> Any:
     """Extract summary from body battery events, stripping time-series detail."""
     if not bb_events or not isinstance(bb_events, list):
         return bb_events
-    return [_strip_keys(event, _BB_EVENT_TIMESERIES_KEYS) for event in bb_events]
+    return [strip_keys(event, _BB_EVENT_TIMESERIES_KEYS) for event in bb_events]
 
 
 async def query_health_summary(
@@ -338,7 +333,7 @@ async def query_sleep_data(
             try:
                 data = client.safe_call("get_sleep_data", date_str)
                 if summary_only:
-                    data = _strip_keys(data, _SLEEP_TIMESERIES_KEYS)
+                    data = strip_keys(data, _SLEEP_TIMESERIES_KEYS)
                 sleep_data.append(
                     {"date": ResponseBuilder.format_date_with_day(date_str), "sleep": data}
                 )
@@ -459,7 +454,7 @@ async def query_heart_rate_data(
             try:
                 hr = client.safe_call("get_heart_rates", date_str)
                 if summary_only and isinstance(hr, dict):
-                    hr = _strip_keys(hr, _HR_TIMESERIES_KEYS)
+                    hr = strip_keys(hr, _HR_TIMESERIES_KEYS)
                 entry["heart_rate"] = hr
             except Exception:
                 entry["heart_rate"] = None

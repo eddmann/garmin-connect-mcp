@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from fastmcp import Context
 
 from ..client import GarminAPIError
-from ..response_builder import ResponseBuilder
+from ..response_builder import ResponseBuilder, strip_keys
 from ..time_utils import (
     format_date_for_api,
     get_range_description,
@@ -15,6 +15,15 @@ from ..time_utils import (
     parse_time_range,
 )
 from ..types import UnitSystem
+
+# Keys containing detailed HRV readings stripped in summary mode.
+_HRV_DETAIL_KEYS = {
+    "hrvReadings",
+    "startTimestampLocal",
+    "endTimestampLocal",
+    "startTimestampGMT",
+    "endTimestampGMT",
+}
 
 
 async def analyze_training_period(
@@ -303,19 +312,7 @@ async def get_performance_metrics(
                 try:
                     hrv = client.safe_call("get_hrv_data", query_date)
                     if summary_only and isinstance(hrv, dict):
-                        # Strip detailed HRV readings, keep summary fields
-                        hrv = {
-                            k: v
-                            for k, v in hrv.items()
-                            if k
-                            not in {
-                                "hrvReadings",
-                                "startTimestampLocal",
-                                "endTimestampLocal",
-                                "startTimestampGMT",
-                                "endTimestampGMT",
-                            }
-                        }
+                        hrv = strip_keys(hrv, _HRV_DETAIL_KEYS)
                     metrics_data["hrv"] = hrv
                 except Exception:
                     metrics_data["hrv"] = None

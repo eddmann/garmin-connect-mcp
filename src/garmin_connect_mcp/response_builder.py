@@ -19,6 +19,14 @@ def _convert_datetimes(obj: Any) -> Any:  # type: ignore[misc]
     return obj
 
 
+def strip_keys(data: dict[str, Any], keys_to_strip: set[str]) -> dict[str, Any]:
+    """Return a copy of data with specified keys removed.
+
+    Used by summary_only mode to strip time-series arrays from API responses.
+    """
+    return {k: v for k, v in data.items() if k not in keys_to_strip}
+
+
 class ResponseBuilder:
     """Build structured responses with data, analysis, and metadata."""
 
