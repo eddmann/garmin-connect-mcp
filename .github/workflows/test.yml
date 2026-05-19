@@ -8,31 +8,16 @@ on:
 
 jobs:
   test:
-    name: Run Tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: make deps
 
-      - name: Run linting (ruff)
-        run: uv run ruff check
-
-      - name: Run type checking (pyright)
-        run: uv run pyright
-
-      - name: Run tests
-        run: uv run pytest
+      - name: Run tests and linting
+        run: make can-release
