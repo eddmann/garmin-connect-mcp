@@ -29,7 +29,7 @@ Additionally, the server provides:
 
 ## Prerequisites
 
-- [uv](https://github.com/astral-sh/uv), OR
+- [uv](https://github.com/astral-sh/uv) (the package requires Python 3.12+, which uv can manage), OR
 - Docker
 
 ## Installation & Setup
@@ -48,8 +48,10 @@ uvx garmin-connect-mcp auth
 ```
 
 This will prompt for your credentials, complete Garmin authentication, and save OAuth tokens
-for the MCP server to reuse. If you prefer manual configuration, provide credentials as
-environment variables:
+for the MCP server to reuse. It writes credentials to `~/.garminconnect.env` by default
+and saves OAuth tokens under `~/.garminconnect/`.
+
+If you prefer manual configuration, create `~/.garminconnect.env` yourself:
 
 ```bash
 GARMIN_EMAIL=your-email@example.com
@@ -126,18 +128,11 @@ published package:
   "mcpServers": {
     "garmin": {
       "command": "uvx",
-      "args": ["garmin-connect-mcp"],
-      "env": {
-        "GARMIN_EMAIL": "your-email@example.com",
-        "GARMIN_PASSWORD": "your-password"
-      }
+      "args": ["garmin-connect-mcp"]
     }
   }
 }
 ```
-
-The credentials are still required so the server can validate configuration before using
-the persisted OAuth tokens in `~/.garminconnect/`.
 
 ### Using Local Source
 

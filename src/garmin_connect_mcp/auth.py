@@ -2,8 +2,10 @@
 
 from pathlib import Path
 
-from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_ENV_FILE = Path.home() / ".garminconnect.env"
+LOCAL_ENV_FILE = Path(".env")
 
 
 class GarminConfig(BaseSettings):
@@ -14,15 +16,21 @@ class GarminConfig(BaseSettings):
     garmintokens: str = str(Path.home() / ".garminconnect")
     garmintokens_base64: str = str(Path.home() / ".garminconnect_base64")
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_file_encoding="utf-8", case_sensitive=False)
+
+
+def get_env_file_path() -> Path:
+    """Get the path where interactive setup should write credentials."""
+    local_env = Path.cwd() / LOCAL_ENV_FILE
+    if local_env.exists():
+        return local_env
+    return DEFAULT_ENV_FILE
 
 
 def load_config() -> GarminConfig:
-    """Load configuration from .env file."""
-    load_dotenv()
-    return GarminConfig()
+    """Load configuration from environment variables and env files."""
+    settings_kwargs = {"_env_file": (str(DEFAULT_ENV_FILE), str(LOCAL_ENV_FILE))}
+    return GarminConfig(**settings_kwargs)
 
 
 def validate_credentials(config: GarminConfig) -> bool:

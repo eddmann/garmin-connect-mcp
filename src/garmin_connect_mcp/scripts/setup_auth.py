@@ -1,11 +1,10 @@
 """Interactive authentication setup script for Garmin Connect MCP."""
 
 import sys
-from pathlib import Path
 
 from dotenv import set_key
 
-from ..auth import GarminConfig, get_token_store
+from ..auth import GarminConfig, get_env_file_path, get_token_store
 from ..client import init_garmin_client
 
 
@@ -28,17 +27,16 @@ def main():
         print("\nError: Email and password are required.")
         return
 
-    # Save to .env file
-    env_path = Path.cwd() / ".env"
-
-    if not env_path.exists():
-        env_path.touch()
+    # Save to an existing local .env file, or the default user config file.
+    env_path = get_env_file_path()
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    env_path.touch(exist_ok=True)
 
     set_key(str(env_path), "GARMIN_EMAIL", email)
     set_key(str(env_path), "GARMIN_PASSWORD", password)
 
     print()
-    print("Credentials saved to .env")
+    print(f"Credentials saved to: {env_path}")
     print()
     print("-" * 60)
     print("Authenticating with Garmin Connect...")
@@ -68,7 +66,7 @@ def main():
     print(f"Tokens saved to: {get_token_store()}")
     print()
     print("You can now use the Garmin Connect MCP server:")
-    print("  uv run garmin-connect-mcp")
+    print("  uvx garmin-connect-mcp")
     print()
     print("Your saved tokens will be reused automatically.")
     print("Re-run this script if you need to change credentials or re-authenticate.")
