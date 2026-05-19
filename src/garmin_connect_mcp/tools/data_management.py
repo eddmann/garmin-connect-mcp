@@ -34,7 +34,7 @@ async def log_health_data(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         date_str = (
             parse_date_string(date).strftime("%Y-%m-%d")

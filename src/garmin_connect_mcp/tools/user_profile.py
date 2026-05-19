@@ -27,7 +27,7 @@ async def get_user_profile(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Get basic profile info
         full_name = client.safe_call("get_full_name")

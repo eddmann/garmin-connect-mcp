@@ -22,7 +22,7 @@ async def query_weight_data(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Determine query type
         if date:
@@ -72,7 +72,7 @@ async def manage_weight_data(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         if action == "add":
             if weight is None:

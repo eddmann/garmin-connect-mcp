@@ -26,7 +26,7 @@ async def compare_activities(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Parse activity IDs
         ids = [int(id_str.strip()) for id_str in activity_ids.split(",")]
@@ -277,7 +277,7 @@ async def find_similar_activities(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Coerce limit to int if passed as string
         if isinstance(limit, str):

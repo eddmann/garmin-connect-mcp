@@ -27,7 +27,7 @@ async def query_womens_health(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         if data_type == "pregnancy":
             # Pregnancy summary

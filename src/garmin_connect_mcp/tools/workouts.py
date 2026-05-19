@@ -25,7 +25,7 @@ async def manage_workouts(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         if action == "list":
             workouts = client.safe_call("get_workouts")

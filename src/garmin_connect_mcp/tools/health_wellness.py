@@ -62,7 +62,7 @@ async def query_health_summary(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Parse cursor for pagination
         current_page = 1
@@ -249,7 +249,7 @@ async def query_sleep_data(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Determine date(s) to query
         if date:
@@ -357,7 +357,7 @@ async def query_heart_rate_data(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Determine date(s) to query
         if date:
@@ -458,7 +458,7 @@ async def query_activity_metrics(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Parse requested metrics
         requested_metrics = [m.strip().lower() for m in metrics.split(",")]

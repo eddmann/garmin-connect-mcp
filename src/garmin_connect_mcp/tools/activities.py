@@ -244,7 +244,7 @@ async def query_activities(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Coerce limit to int if passed as string
         if limit is not None and isinstance(limit, str):
@@ -667,7 +667,7 @@ async def get_activity_details(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Start with base activity data
         activity = client.safe_call("get_activity", activity_id)
@@ -815,7 +815,7 @@ async def get_activity_social(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Get activity social details
         social = client.safe_call("get_activity_social", activity_id)

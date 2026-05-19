@@ -22,7 +22,7 @@ async def query_goals_and_records(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         data = {}
 
@@ -89,7 +89,7 @@ async def query_challenges(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         data = {}
 

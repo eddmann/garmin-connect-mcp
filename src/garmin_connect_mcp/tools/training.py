@@ -40,7 +40,7 @@ async def analyze_training_period(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Parse period
         start_date, end_date = parse_time_range(period)
@@ -253,7 +253,7 @@ async def get_performance_metrics(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Determine query type
         if date:
@@ -361,7 +361,7 @@ async def get_training_effect(
     """
     assert ctx is not None
     try:
-        client = ctx.get_state("client")
+        client = await ctx.get_state("client")
 
         # Pattern 1: Training effect for activity
         if activity_id is not None:
