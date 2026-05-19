@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class GarminConfig(BaseSettings):
@@ -14,10 +14,11 @@ class GarminConfig(BaseSettings):
     garmintokens: str = str(Path.home() / ".garminconnect")
     garmintokens_base64: str = str(Path.home() / ".garminconnect_base64")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False
+    )
 
 
 def load_config() -> GarminConfig:
