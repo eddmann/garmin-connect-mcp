@@ -57,6 +57,14 @@ format: ## Fix style violations and format code
 	@uv run ruff check --fix
 	@uv run ruff format
 
+##@ Packaging
+
+build: clean ## Build source and wheel distributions
+	@uv build
+
+package/check: build ## Validate built distributions
+	@uvx twine check dist/*
+
 ##@ Development
 
 auth: ## Run the Garmin authentication setup
