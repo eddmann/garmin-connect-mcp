@@ -5,6 +5,8 @@
 A Model Context Protocol (MCP) server for Garmin Connect integration. Access your activities, health data, training metrics, and more through Claude and other LLMs.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/garmin-connect-mcp.svg)](https://pypi.org/project/garmin-connect-mcp/)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue.svg)](https://github.com/eddmann/garmin-connect-mcp/pkgs/container/garmin-connect-mcp)
 
 ## Overview
 
@@ -27,7 +29,7 @@ Additionally, the server provides:
 
 ## Prerequisites
 
-- Python 3.12+ and [uv](https://github.com/astral-sh/uv), OR
+- [uv](https://github.com/astral-sh/uv), OR
 - Docker
 
 ## Installation & Setup
@@ -39,28 +41,15 @@ Additionally, the server provides:
 3. Token Storage - OAuth tokens saved to `~/.garminconnect/` and automatically refreshed
 4. Persistence - Tokens persist across runs (UV on host, Docker requires volume mount)
 
-### Option 1: Using UV
+### Option 1: Using uvx
 
 ```bash
-# Install dependencies
-cd garmin-connect-mcp
-uv sync
-```
-
-Then configure credentials using one of these methods:
-
-#### Interactive Setup
-
-```bash
-uv run garmin-connect-mcp auth
+uvx garmin-connect-mcp auth
 ```
 
 This will prompt for your credentials, complete Garmin authentication, and save OAuth tokens
-for the MCP server to reuse.
-
-#### Manual Setup
-
-Create a `.env` file manually:
+for the MCP server to reuse. If you prefer manual configuration, provide credentials as
+environment variables:
 
 ```bash
 GARMIN_EMAIL=your-email@example.com
@@ -127,7 +116,38 @@ Add to your configuration file:
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
-### Using UV
+### Using uvx
+
+After running `uvx garmin-connect-mcp auth`, configure Claude Desktop to start the
+published package:
+
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "uvx",
+      "args": ["garmin-connect-mcp"],
+      "env": {
+        "GARMIN_EMAIL": "your-email@example.com",
+        "GARMIN_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+The credentials are still required so the server can validate configuration before using
+the persisted OAuth tokens in `~/.garminconnect/`.
+
+### Using Local Source
+
+For development, run from a local checkout:
+
+```bash
+cd garmin-connect-mcp
+uv sync
+uv run garmin-connect-mcp auth
+```
 
 ```json
 {

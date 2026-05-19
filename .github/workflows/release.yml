@@ -126,6 +126,8 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           name: garmin-connect-mcp v${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.content }}
-          files: dist/*
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
           draft: false
           prerelease: false
