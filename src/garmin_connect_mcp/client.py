@@ -5,8 +5,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from garminconnect import Garmin, GarminConnectAuthenticationError
-from garth.exc import GarthHTTPError
+from garminconnect import (
+    Garmin,
+    GarminConnectAuthenticationError,
+    GarminConnectConnectionError,
+    GarminConnectTooManyRequestsError,
+)
 
 from .auth import GarminConfig, get_token_base64_path, get_token_store
 
@@ -85,7 +89,11 @@ def init_garmin_client(
             else:
                 raise FileNotFoundError("No tokens found")
 
-        except (FileNotFoundError, GarthHTTPError, GarminConnectAuthenticationError) as e:
+        except (
+            FileNotFoundError,
+            GarminConnectAuthenticationError,
+            GarminConnectConnectionError,
+        ) as e:
             # Token login failed, try credential login
             print(f"Token login failed: {e}. Attempting credential-based login...", file=sys.stderr)
 
@@ -101,18 +109,22 @@ def init_garmin_client(
             garmin.login()
 
             # Save tokens for future use
-            garmin.garth.dump(tokenstore)
+            garmin.client.dump(tokenstore)
             print(f"OAuth tokens saved to directory: {tokenstore}", file=sys.stderr)
 
             # Also save base64 encoded tokens
             token_base64_path = get_token_base64_path()
-            Path(token_base64_path).write_text(garmin.garth.dumps())
+            Path(token_base64_path).write_text(garmin.client.dumps())
             print(f"OAuth tokens encoded as base64: {token_base64_path}", file=sys.stderr)
 
             return garmin
 
     except GarminConnectAuthenticationError as err:
         print(f"Authentication error: {err}", file=sys.stderr)
+        return None
+
+    except GarminConnectTooManyRequestsError as err:
+        print(f"Rate limit error: {err}", file=sys.stderr)
         return None
 
     except Exception as err:
@@ -160,7 +172,9 @@ class GarminClientWrapper:
             ) from e
         except GarminConnectAuthenticationError as e:
             raise GarminAuthenticationError(original_error=e) from e
-        except GarthHTTPError as e:
+        except GarminConnectTooManyRequestsError as e:
+            raise GarminRateLimitError(original_error=e) from e
+        except GarminConnectConnectionError as e:
             # Parse HTTP status code from error
             error_str = str(e)
             if "429" in error_str or "Too Many Requests" in error_str:

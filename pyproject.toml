@@ -3,10 +3,10 @@ name = "garmin-connect-mcp"
 version = "1.0.0"
 description = "Model Context Protocol server for Garmin Connect API integration"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=3.3.1",
-    "garminconnect>=0.2.25",
+    "garminconnect>=0.3.3",
     "pydantic>=2.10.5",
     "pydantic-settings>=2.7.1",
     "python-dotenv>=1.0.1",
@@ -41,7 +41,7 @@ python_functions = ["test_*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.format]
 quote-style = "double"
@@ -58,7 +58,7 @@ ignore = ["E501"]  # Line length enforced by ruff format instead
 "src/garmin_connect_mcp/server.py" = ["E402"]  # Imports must come after FastMCP initialization
 
 [tool.pyright]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 typeCheckingMode = "basic"
 reportMissingTypeStubs = false
 reportUnknownMemberType = false
