@@ -1,6 +1,7 @@
 """Garmin Connect API client wrapper with error handling."""
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -49,7 +50,9 @@ class GarminAuthenticationError(GarminAPIError):
         )
 
 
-def init_garmin_client(config: GarminConfig) -> Garmin | None:
+def init_garmin_client(
+    config: GarminConfig, prompt_mfa: Callable[[], str] | None = None
+) -> Garmin | None:
     """
     Initialize and authenticate Garmin client.
 
@@ -60,6 +63,8 @@ def init_garmin_client(config: GarminConfig) -> Garmin | None:
 
     Args:
         config: Garmin configuration with credentials
+        prompt_mfa: Optional callback for interactive MFA prompts. Only pass this from
+            interactive setup flows, not MCP runtime.
 
     Returns:
         Authenticated Garmin client or None on failure
@@ -84,24 +89,16 @@ def init_garmin_client(config: GarminConfig) -> Garmin | None:
             # Token login failed, try credential login
             print(f"Token login failed: {e}. Attempting credential-based login...", file=sys.stderr)
 
-            # Create Garmin client with credentials
-            garmin = Garmin(config.garmin_email, config.garmin_password)
+            # Create Garmin client with credentials. MFA prompts are only enabled when
+            # an interactive caller explicitly supplies a callback.
+            garmin = Garmin(
+                email=config.garmin_email,
+                password=config.garmin_password,
+                prompt_mfa=prompt_mfa,
+            )
 
-            # Attempt login
-            result = garmin.login()
-
-            # Check if MFA is needed
-            if result and len(result) >= 2:
-                oauth1_token, oauth2_token = result
-
-                # Check if MFA is required (oauth1_token will have mfa_token)
-                mfa_token = getattr(oauth1_token, "mfa_token", None)
-                if mfa_token:
-                    print("MFA required. Please enter your MFA code.", file=sys.stderr)
-                    mfa_code = input("MFA one-time code: ")
-
-                    # Resume login with MFA code
-                    garmin.resume_login(result, mfa_code)
+            # Attempt credential-based login.
+            garmin.login()
 
             # Save tokens for future use
             garmin.garth.dump(tokenstore)

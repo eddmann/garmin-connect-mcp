@@ -38,7 +38,11 @@ class ConfigMiddleware(Middleware):
         # Initialize Garmin client
         client = init_garmin_client(config)
         if client is None:
-            raise ToolError("Failed to initialize Garmin client. Please check your credentials.")
+            raise ToolError(
+                "Failed to initialize Garmin client. "
+                "Please run 'garmin-connect-mcp-auth' to authenticate interactively. "
+                "If the problem persists, check your credentials in the .env file."
+            )
 
         client_wrapper = GarminClientWrapper(client)
 

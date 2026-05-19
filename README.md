@@ -34,8 +34,8 @@ Additionally, the server provides:
 
 ### How Authentication Works
 
-1. Credential Authentication - First run authenticates with email/password
-2. MFA Support - If MFA is enabled, you'll be prompted for your code (interactive stdin)
+1. Credential Authentication - Run the setup command to save credentials
+2. MFA Support - If MFA is enabled, the setup command prompts for your code
 3. Token Storage - OAuth tokens saved to `~/.garminconnect/` and automatically refreshed
 4. Persistence - Tokens persist across runs (UV on host, Docker requires volume mount)
 
@@ -55,7 +55,8 @@ Then configure credentials using one of these methods:
 uv run garmin-connect-mcp-auth
 ```
 
-This will prompt for your credentials and save them to `.env`.
+This will prompt for your credentials, complete Garmin authentication, and save OAuth tokens
+for the MCP server to reuse.
 
 #### Manual Setup
 
@@ -81,15 +82,17 @@ Then configure credentials using one of these methods:
 # Create the env file first (Docker will create it as a directory if it doesn't exist)
 touch garmin-connect-mcp.env
 
-# Run the setup script
+# Run the setup script and persist generated tokens
 docker run -it --rm \
   -v "/ABSOLUTE/PATH/TO/garmin-connect-mcp.env:/app/.env" \
+  -v "/ABSOLUTE/PATH/TO/.garminconnect-docker:/root/.garminconnect" \
   --entrypoint= \
   ghcr.io/eddmann/garmin-connect-mcp:latest \
   python -m garmin_connect_mcp.scripts.setup_auth
 ```
 
-This will prompt for your credentials and save them to `garmin-connect-mcp.env`.
+This will prompt for your credentials, complete Garmin authentication, and save credentials to
+`garmin-connect-mcp.env`. If you have MFA enabled, enter the code during this setup step.
 
 #### Manual Setup
 
@@ -104,9 +107,10 @@ GARMIN_PASSWORD=your-password
 
 If you have MFA enabled on your Garmin account:
 
-- The server will prompt for your MFA code on first run (requires `-it` flags for interactive input)
-- **Important**: Without token persistence, you'll need to enter your MFA code on every container restart
-- **Recommended**: Mount the token directory as a volume to persist tokens and avoid repeated MFA prompts
+- Run the interactive setup command with `-it` so you can enter your MFA code
+- The MCP server should then use saved tokens and should not prompt during runtime
+- **Important**: Without token persistence, you'll need to authenticate again on every container restart
+- **Recommended**: Mount the token directory as a volume during setup and server runs to persist tokens
 
 To persist tokens across Docker runs, create a directory for tokens and mount it:
 

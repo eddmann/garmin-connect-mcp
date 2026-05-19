@@ -1,8 +1,12 @@
 """Interactive authentication setup script for Garmin Connect MCP."""
 
+import sys
 from pathlib import Path
 
 from dotenv import set_key
+
+from ..auth import GarminConfig, get_token_store
+from ..client import init_garmin_client
 
 
 def main():
@@ -34,20 +38,40 @@ def main():
     set_key(str(env_path), "GARMIN_PASSWORD", password)
 
     print()
-    print("✓ Success! Credentials have been saved to .env")
+    print("Credentials saved to .env")
     print()
+    print("-" * 60)
+    print("Authenticating with Garmin Connect...")
+    print("-" * 60)
+    print()
+    print("If your Garmin account has MFA enabled, enter the code when prompted.")
+    print()
+
+    def prompt_for_mfa() -> str:
+        """Prompt for a Garmin MFA code in the interactive setup command."""
+        return input("MFA one-time code: ").strip()
+
+    config = GarminConfig(garmin_email=email, garmin_password=password)
+    client = init_garmin_client(config, prompt_mfa=prompt_for_mfa)
+
+    if client is None:
+        print()
+        print("Authentication failed.")
+        print("Please check your credentials and try again.")
+        sys.exit(1)
+
     print("=" * 60)
     print("Setup Complete!")
     print("=" * 60)
     print()
-    print("Authentication will be performed automatically when you")
-    print("first run the Garmin Connect MCP server.")
-    print()
-    print("If you have two-factor authentication enabled, you will be")
-    print("prompted for your MFA code on first login.")
+    print("Authentication successful.")
+    print(f"Tokens saved to: {get_token_store()}")
     print()
     print("You can now use the Garmin Connect MCP server:")
     print("  uv run garmin-connect-mcp")
+    print()
+    print("Your saved tokens will be reused automatically.")
+    print("Re-run this script if you need to change credentials or re-authenticate.")
     print()
 
 
