@@ -52,7 +52,7 @@ Then configure credentials using one of these methods:
 #### Interactive Setup
 
 ```bash
-uv run garmin-connect-mcp-auth
+uv run garmin-connect-mcp auth
 ```
 
 This will prompt for your credentials, complete Garmin authentication, and save OAuth tokens
@@ -86,9 +86,8 @@ touch garmin-connect-mcp.env
 docker run -it --rm \
   -v "/ABSOLUTE/PATH/TO/garmin-connect-mcp.env:/app/.env" \
   -v "/ABSOLUTE/PATH/TO/.garminconnect-docker:/root/.garminconnect" \
-  --entrypoint= \
   ghcr.io/eddmann/garmin-connect-mcp:latest \
-  python -m garmin_connect_mcp.scripts.setup_auth
+  auth
 ```
 
 This will prompt for your credentials, complete Garmin authentication, and save credentials to

@@ -60,7 +60,7 @@ format: ## Fix style violations and format code
 ##@ Development
 
 auth: ## Run the Garmin authentication setup
-	@uv run garmin-connect-mcp-auth
+	@uv run garmin-connect-mcp auth
 
 run: ## Run the MCP server locally
 	@uv run garmin-connect-mcp

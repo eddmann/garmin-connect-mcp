@@ -49,7 +49,7 @@ class GarminAuthenticationError(GarminAPIError):
 
     def __init__(self, original_error: Exception | None = None):
         super().__init__(
-            "Authentication failed. Please run 'garmin-connect-mcp-auth' to re-authenticate.",
+            "Authentication failed. Please run 'garmin-connect-mcp auth' to re-authenticate.",
             original_error=original_error,
         )
 

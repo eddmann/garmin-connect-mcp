@@ -32,7 +32,7 @@ class ConfigMiddleware(Middleware):
         if not validate_credentials(config):
             raise ToolError(
                 "Garmin credentials not configured. "
-                "Please run 'garmin-connect-mcp-auth' to set up authentication."
+                "Please run 'garmin-connect-mcp auth' to set up authentication."
             )
 
         # Initialize Garmin client
@@ -40,7 +40,7 @@ class ConfigMiddleware(Middleware):
         if client is None:
             raise ToolError(
                 "Failed to initialize Garmin client. "
-                "Please run 'garmin-connect-mcp-auth' to authenticate interactively. "
+                "Please run 'garmin-connect-mcp auth' to authenticate interactively. "
                 "If the problem persists, check your credentials in the .env file."
             )
 
