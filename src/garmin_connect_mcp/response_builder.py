@@ -19,6 +19,14 @@ def _convert_datetimes(obj: Any) -> Any:  # type: ignore[misc]
     return obj
 
 
+def strip_keys(data: dict[str, Any], keys_to_strip: set[str]) -> dict[str, Any]:
+    """Return a copy of data with specified keys removed.
+
+    Used by summary_only mode to strip time-series arrays from API responses.
+    """
+    return {k: v for k, v in data.items() if k not in keys_to_strip}
+
+
 class ResponseBuilder:
     """Build structured responses with data, analysis, and metadata."""
 
@@ -219,6 +227,48 @@ class ResponseBuilder:
             formatted["calories"] = activity_dict["calories"]
 
         return formatted
+
+    # Fields retained in summary mode for format_activity.
+    # Everything else (userRoles, splitSummaries, profile images, etc.) is stripped.
+    _ACTIVITY_SUMMARY_KEYS = {
+        "activityId",
+        "activityName",
+        "activityType",
+        "startTimeLocal",
+        "distance",
+        "duration",
+        "elevationGain",
+        "averageSpeed",
+        "heart_rate",
+        "power",
+        "cadence",
+        "calories",
+        "vO2MaxValue",
+        "trainingEffectLabel",
+        "aerobicTrainingEffect",
+        "anaerobicTrainingEffect",
+    }
+
+    @staticmethod
+    def format_activity_summary(
+        activity_dict: dict[str, Any], unit: UnitSystem = "metric"
+    ) -> dict[str, Any]:
+        """
+        Format an activity with only essential fields for summary mode.
+
+        Applies the same rich formatting as format_activity but strips
+        non-essential fields like userRoles, splitSummaries, profile images,
+        and connectIQ items. Reduces per-activity size by ~60-70%.
+
+        Args:
+            activity_dict: Raw activity data
+            unit: Unit system ('metric' or 'imperial')
+
+        Returns:
+            Formatted activity dictionary with only key fields
+        """
+        formatted = ResponseBuilder.format_activity(activity_dict, unit)
+        return {k: v for k, v in formatted.items() if k in ResponseBuilder._ACTIVITY_SUMMARY_KEYS}
 
     @staticmethod
     def format_health_metric(

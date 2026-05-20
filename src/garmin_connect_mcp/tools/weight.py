@@ -1,6 +1,6 @@
 """Weight management tools for Garmin Connect MCP server."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastmcp import Context
 
@@ -8,17 +8,69 @@ from ..client import GarminAPIError
 from ..response_builder import ResponseBuilder
 from ..time_utils import parse_date_string
 
+# Fields to keep from weight entries in summary mode.
+_WEIGHT_SUMMARY_KEYS = {
+    "samplePk",
+    "date",
+    "calendarDate",
+    "weight",
+    "bmi",
+    "bodyFat",
+    "bodyWater",
+    "boneMass",
+    "muscleMass",
+}
+
+
+def _summarize_weight_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Keep only essential fields from a single weight measurement."""
+    return {k: v for k, v in entry.items() if k in _WEIGHT_SUMMARY_KEYS}
+
+
+def _summarize_weigh_ins(weigh_ins: Any) -> Any:
+    """Strip device metadata from weight data in summary mode.
+
+    Handles both flat lists of entries and the nested dailyWeightSummaries structure.
+    """
+    if isinstance(weigh_ins, list):
+        return [_summarize_weight_entry(e) for e in weigh_ins if isinstance(e, dict)]
+
+    if isinstance(weigh_ins, dict):
+        result = {}
+        # Handle dailyWeightSummaries structure
+        if "dailyWeightSummaries" in weigh_ins:
+            summaries = []
+            for day in weigh_ins["dailyWeightSummaries"]:
+                summary = {"summaryDate": day.get("summaryDate")}
+                if "latestWeight" in day and isinstance(day["latestWeight"], dict):
+                    summary["latestWeight"] = _summarize_weight_entry(day["latestWeight"])
+                summaries.append(summary)
+            result["dailyWeightSummaries"] = summaries
+        if "totalAverage" in weigh_ins and isinstance(weigh_ins["totalAverage"], dict):
+            result["totalAverage"] = _summarize_weight_entry(weigh_ins["totalAverage"])
+        return result
+
+    return weigh_ins
+
 
 async def query_weight_data(
     date: Annotated[str | None, "Specific date ('today', 'yesterday', or YYYY-MM-DD)"] = None,
     start_date: Annotated[str | None, "Range start date (YYYY-MM-DD)"] = None,
     end_date: Annotated[str | None, "Range end date (YYYY-MM-DD)"] = None,
+    summary_only: Annotated[
+        bool,
+        "Return only key weight fields (weight, BMI, date) without "
+        "device metadata and source details. Included for API consistency.",
+    ] = False,
     ctx: Context | None = None,
 ) -> str:
     """
     Query weight data.
 
     Get weight measurements for a specific date or date range.
+
+    Use summary_only=True to get streamlined weight entries
+    without device metadata and source details.
     """
     assert ctx is not None
     try:
@@ -29,12 +81,16 @@ async def query_weight_data(
             parsed_date = parse_date_string(date)
             date_str = parsed_date.strftime("%Y-%m-%d")
             weight_data = client.safe_call("get_daily_weigh_ins", date_str)
+            if summary_only:
+                weight_data = _summarize_weigh_ins(weight_data)
             return ResponseBuilder.build_response(
                 data={"weigh_ins": weight_data, "date": date_str},
                 metadata={"query_type": "single_date", "date": date_str},
             )
         elif start_date and end_date:
             weight_data = client.safe_call("get_weigh_ins", start_date, end_date)
+            if summary_only:
+                weight_data = _summarize_weigh_ins(weight_data)
             return ResponseBuilder.build_response(
                 data={"weigh_ins": weight_data},
                 metadata={"query_type": "range", "start_date": start_date, "end_date": end_date},
@@ -43,6 +99,8 @@ async def query_weight_data(
             # Default to today
             date_str = parse_date_string("today").strftime("%Y-%m-%d")
             weight_data = client.safe_call("get_daily_weigh_ins", date_str)
+            if summary_only:
+                weight_data = _summarize_weigh_ins(weight_data)
             return ResponseBuilder.build_response(
                 data={"weigh_ins": weight_data, "date": date_str},
                 metadata={"query_type": "single_date", "date": date_str},

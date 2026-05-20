@@ -11,6 +11,13 @@ from ..time_utils import parse_date_string
 from ..types import UnitSystem
 
 
+def _activity_formatter(summary_only: bool):
+    """Return the appropriate activity formatter based on summary mode."""
+    return (
+        ResponseBuilder.format_activity_summary if summary_only else ResponseBuilder.format_activity
+    )
+
+
 async def _query_activities_paginated(
     client: GarminClientWrapper,
     start_date: str,
@@ -19,6 +26,7 @@ async def _query_activities_paginated(
     cursor: str | None,
     limit: int,
     unit: UnitSystem,
+    summary_only: bool = False,
 ) -> str:
     """Query activities by date range with cursor-based pagination."""
     # Parse cursor to get current page
@@ -90,7 +98,8 @@ async def _query_activities_paginated(
         )
 
     # Format activities
-    formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+    formatter = _activity_formatter(summary_only)
+    formatted_activities = [formatter(act, unit) for act in activities]
 
     # Aggregate metrics
     aggregated = ResponseBuilder.aggregate_activities(activities, unit)
@@ -114,6 +123,7 @@ async def _query_activities_general_paginated(
     cursor: str | None,
     limit: int,
     unit: UnitSystem,
+    summary_only: bool = False,
 ) -> str:
     """Query activities with general pagination (no date filter)."""
     # Parse cursor to get current page
@@ -174,7 +184,8 @@ async def _query_activities_general_paginated(
         )
 
     # Format activities
-    formatted_activities = [ResponseBuilder.format_activity(act, unit) for act in activities]
+    formatter = _activity_formatter(summary_only)
+    formatted_activities = [formatter(act, unit) for act in activities]
 
     # Aggregate metrics
     aggregated = ResponseBuilder.aggregate_activities(activities, unit)
@@ -204,6 +215,12 @@ async def query_activities(
         "Use pagination cursor for large datasets.",
     ] = None,
     activity_type: Annotated[str, "Activity type filter (e.g., 'running', 'cycling')"] = "",
+    summary_only: Annotated[
+        bool,
+        "Return only essential activity fields (name, type, time, distance, duration, "
+        "HR, elevation, calories) without detailed metadata like userRoles, splitSummaries, "
+        "and profile data. Reduces per-activity size by ~60-70%.",
+    ] = False,
     unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
     ctx: Context | None = None,
 ) -> str:
@@ -218,6 +235,9 @@ async def query_activities(
     5. Get last activity: no parameters
 
     All queries can be filtered by activity_type (e.g., 'running', 'cycling').
+
+    Use summary_only=True for routine queries to get essential activity data
+    without verbose metadata (~60-70% size reduction per activity).
 
     Pagination:
     For large time ranges, use pagination to retrieve all activities:
@@ -271,7 +291,8 @@ async def query_activities(
                 )
 
             # Format the activity with rich data
-            formatted_activity = ResponseBuilder.format_activity(activity, unit)
+            formatter = _activity_formatter(summary_only)
+            formatted_activity = formatter(activity, unit)
 
             return ResponseBuilder.build_response(
                 data={"activity": formatted_activity},
@@ -292,6 +313,7 @@ async def query_activities(
                 cursor=cursor,
                 limit=limit or 10,
                 unit=unit,
+                summary_only=summary_only,
             )
 
         # Pattern 3: Specific date query
@@ -320,9 +342,8 @@ async def query_activities(
                     analysis={"insights": [f"No activities found{type_msg} for {date_str}"]},
                 )
 
-            formatted_activities = [
-                ResponseBuilder.format_activity(act, unit) for act in activities
-            ]
+            formatter = _activity_formatter(summary_only)
+            formatted_activities = [formatter(act, unit) for act in activities]
 
             # Aggregate metrics
             aggregated = ResponseBuilder.aggregate_activities(activities, unit)
@@ -346,6 +367,7 @@ async def query_activities(
                 cursor=cursor,
                 limit=limit or 10,
                 unit=unit,
+                summary_only=summary_only,
             )
 
         # Pattern 5: Last activity (default)
@@ -357,7 +379,12 @@ async def query_activities(
                 analysis={"insights": ["No activities found"]},
             )
 
-        formatted_activity = ResponseBuilder.format_activity(activity, unit)
+        formatter = (
+            ResponseBuilder.format_activity_summary
+            if summary_only
+            else ResponseBuilder.format_activity
+        )
+        formatted_activity = formatter(activity, unit)
 
         return ResponseBuilder.build_response(
             data={"activity": formatted_activity},

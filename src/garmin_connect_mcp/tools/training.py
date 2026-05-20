@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from fastmcp import Context
 
 from ..client import GarminAPIError
-from ..response_builder import ResponseBuilder
+from ..response_builder import ResponseBuilder, strip_keys
 from ..time_utils import (
     format_date_for_api,
     get_range_description,
@@ -15,6 +15,15 @@ from ..time_utils import (
     parse_time_range,
 )
 from ..types import UnitSystem
+
+# Keys containing detailed HRV readings stripped in summary mode.
+_HRV_DETAIL_KEYS = {
+    "hrvReadings",
+    "startTimestampLocal",
+    "endTimestampLocal",
+    "startTimestampGMT",
+    "endTimestampGMT",
+}
 
 
 async def analyze_training_period(
@@ -24,6 +33,11 @@ async def analyze_training_period(
     activity_type: Annotated[
         str, "Filter by activity type (e.g., 'running', 'cycling'). Empty for all."
     ] = "",
+    summary_only: Annotated[
+        bool,
+        "Return only period summary and activity type breakdown without "
+        "weekly trend details. Reduces response size for routine checks.",
+    ] = False,
     unit: Annotated[UnitSystem, "Unit system: 'metric' or 'imperial'"] = "metric",
     ctx: Context | None = None,
 ) -> str:
@@ -33,7 +47,7 @@ async def analyze_training_period(
     Provides:
     - Total volume (activities, distance, time, elevation)
     - Activity type breakdown
-    - Weekly trends
+    - Weekly trends (omitted when summary_only=True)
     - Performance insights
 
     Example periods: "30d", "this-month", "2024-01-01:2024-01-31"
@@ -102,39 +116,40 @@ async def analyze_training_period(
                 }
             )
 
-        # Weekly breakdown
-        weeks = get_week_ranges(start_date, end_date)
+        # Weekly breakdown (skip in summary mode to reduce response size)
         weekly_trends = []
+        if not summary_only:
+            weeks = get_week_ranges(start_date, end_date)
 
-        for week_start, week_end in weeks:
-            week_start_str = format_date_for_api(week_start)
-            week_end_str = format_date_for_api(week_end)
+            for week_start, week_end in weeks:
+                week_start_str = format_date_for_api(week_start)
+                week_end_str = format_date_for_api(week_end)
 
-            # Filter activities for this week
-            week_activities = [
-                act
-                for act in activities
-                if week_start_str <= act.get("startTimeLocal", "")[:10] <= week_end_str
-            ]
+                # Filter activities for this week
+                week_activities = [
+                    act
+                    for act in activities
+                    if week_start_str <= act.get("startTimeLocal", "")[:10] <= week_end_str
+                ]
 
-            week_distance = sum(act.get("distance", 0) or 0 for act in week_activities)
-            week_time = sum(act.get("duration", 0) or 0 for act in week_activities)
+                week_distance = sum(act.get("distance", 0) or 0 for act in week_activities)
+                week_time = sum(act.get("duration", 0) or 0 for act in week_activities)
 
-            weekly_trends.append(
-                {
-                    "week_start": ResponseBuilder.format_date_with_day(week_start),
-                    "week_end": ResponseBuilder.format_date_with_day(week_end),
-                    "activities": len(week_activities),
-                    "distance": {
-                        "meters": week_distance,
-                        "formatted": ResponseBuilder._format_distance(week_distance, unit),
-                    },
-                    "time": {
-                        "seconds": week_time,
-                        "formatted": ResponseBuilder._format_duration(week_time),
-                    },
-                }
-            )
+                weekly_trends.append(
+                    {
+                        "week_start": ResponseBuilder.format_date_with_day(week_start),
+                        "week_end": ResponseBuilder.format_date_with_day(week_end),
+                        "activities": len(week_activities),
+                        "distance": {
+                            "meters": week_distance,
+                            "formatted": ResponseBuilder._format_distance(week_distance, unit),
+                        },
+                        "time": {
+                            "seconds": week_time,
+                            "formatted": ResponseBuilder._format_duration(week_time),
+                        },
+                    }
+                )
 
         # Build data structure
         days_in_period = (end_date - start_date).days + 1
@@ -172,8 +187,10 @@ async def analyze_training_period(
                 },
             },
             "by_activity_type": by_type_list,
-            "trends": {"weekly": weekly_trends},
         }
+
+        if weekly_trends:
+            data["trends"] = {"weekly": weekly_trends}
 
         # Generate insights
         insights = []
@@ -241,6 +258,11 @@ async def get_performance_metrics(
     include_endurance_score: Annotated[bool, "Include endurance score"] = True,
     include_hrv: Annotated[bool, "Include heart rate variability"] = True,
     include_fitness_age: Annotated[bool, "Include fitness age calculation"] = True,
+    summary_only: Annotated[
+        bool,
+        "Return only key metric values without detailed time-series or history data. "
+        "Strips HRV readings arrays and detailed metric breakdowns.",
+    ] = False,
     ctx: Context | None = None,
 ) -> str:
     """
@@ -250,6 +272,9 @@ async def get_performance_metrics(
     and fitness age data.
 
     Supports both single-date and date-range queries.
+
+    Use summary_only=True to get key metric values without
+    detailed time-series or historical data.
     """
     assert ctx is not None
     try:
@@ -286,6 +311,8 @@ async def get_performance_metrics(
             if include_hrv:
                 try:
                     hrv = client.safe_call("get_hrv_data", query_date)
+                    if summary_only and isinstance(hrv, dict):
+                        hrv = strip_keys(hrv, _HRV_DETAIL_KEYS)
                     metrics_data["hrv"] = hrv
                 except Exception:
                     metrics_data["hrv"] = None
