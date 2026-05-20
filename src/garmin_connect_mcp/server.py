@@ -325,7 +325,7 @@ async def analyze_recent_training(period: str = "30d") -> str:
         4. Performance metrics (VO2 max, training load)
         5. Key insights and recommendations
 
-        Use the analyze-training-period tool with period="{period}" to get comprehensive analysis,
+        Use the analyze_training_period tool with period="{period}" to get comprehensive analysis,
         then present the findings in a clear, actionable format.
         """
     ).strip()
@@ -345,7 +345,7 @@ async def sleep_quality_report(period: str = "7d") -> str:
         4. HRV and resting heart rate trends
         5. Recommendations for improvement
 
-        Use query-sleep-data with a date range to get sleep data,
+        Use query_sleep_data with a date range to get sleep data,
         then provide actionable insights.
         """
     ).strip()
@@ -365,8 +365,8 @@ async def training_readiness_check() -> str:
         4. Stress levels and recovery time
         5. Recommendation: train hard, train easy, or rest
 
-        Use query-health-summary for today, query-sleep-data for last night,
-        and get-performance-metrics for recent training status.
+        Use query_health_summary for today, query_sleep_data for last night,
+        and get_performance_metrics for recent training status.
         """
     ).strip()
 
@@ -387,8 +387,8 @@ async def activity_deep_dive(activity_id: int) -> str:
         6. Comparison to similar activities
         7. Performance insights
 
-        Use get-activity-details with activity_id={activity_id} for enriched data,
-        then use find-similar-activities to compare with past performances.
+        Use get_activity_details with activity_id={activity_id} for enriched data,
+        then use find_similar_activities to compare with past performances.
         """
     ).strip()
 
@@ -401,9 +401,9 @@ async def compare_recent_runs() -> str:
         Compare my most recent runs to identify trends and improvements.
 
         Steps:
-        1. Use query-activities to get my last 5-10 runs (activity_type="running")
+        1. Use query_activities to get my last 5-10 runs (activity_type="running")
         2. Extract the activity IDs from the most recent runs
-        3. Use compare-activities to do side-by-side comparison
+        3. Use compare_activities to do side-by-side comparison
         4. Highlight improvements in pace, heart rate efficiency, or consistency
         5. Provide actionable feedback
 
@@ -427,8 +427,8 @@ async def health_summary(period: str = "7d") -> str:
         5. Body Battery patterns
         6. Overall health insights and recommendations
 
-        Use query-activity-metrics for steps/stress, query-sleep-data for sleep,
-        query-heart-rate-data for HR/HRV, and synthesize into actionable insights.
+        Use query_activity_metrics for steps/stress, query_sleep_data for sleep,
+        query_heart_rate_data for HR/HRV, and synthesize into actionable insights.
         """
     ).strip()
 

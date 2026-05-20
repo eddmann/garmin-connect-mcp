@@ -214,12 +214,12 @@ Ask Claude to interact with your Garmin data using natural language. The server 
 
 Use built-in prompt templates for common queries (available via prompt suggestions in Claude):
 
-- `analyze-recent-training` - Analyze my training over the past 30 days
-- `sleep-quality-report` - Analyze sleep quality with recommendations
-- `training-readiness-check` - Check if I'm ready to train hard today
-- `activity-deep-dive` - Deep dive into a specific activity
-- `compare-recent-runs` - Compare recent runs to track progress
-- `health-summary` - Show comprehensive health overview
+- `analyze_recent_training` - Analyze my training over the past 30 days
+- `sleep_quality_report` - Analyze sleep quality with recommendations
+- `training_readiness_check` - Check if I'm ready to train hard today
+- `activity_deep_dive` - Deep dive into a specific activity
+- `compare_recent_runs` - Compare recent runs to track progress
+- `health_summary` - Show comprehensive health overview
 
 ### Activities
 
@@ -263,68 +263,68 @@ _Note: List-returning tools use cursor-based pagination with default limits (10 
 
 | Tool                   | Description                                                            |
 | ---------------------- | ---------------------------------------------------------------------- |
-| `query-activities`     | Query activities with pagination (by ID, date range, or specific date) |
-| `get-activity-details` | Get comprehensive activity details (splits, weather, HR zones, gear)   |
-| `get-activity-social`  | Get social details for an activity (likes, comments, kudos)            |
+| `query_activities`     | Query activities with pagination (by ID, date range, or specific date) |
+| `get_activity_details` | Get comprehensive activity details (splits, weather, HR zones, gear)   |
+| `get_activity_social`  | Get social details for an activity (likes, comments, kudos)            |
 
 ### Analysis (2 tools)
 
 | Tool                      | Description                                     |
 | ------------------------- | ----------------------------------------------- |
-| `compare-activities`      | Compare 2-5 activities side-by-side             |
-| `find-similar-activities` | Find activities similar to a reference activity |
+| `compare_activities`      | Compare 2-5 activities side-by-side             |
+| `find_similar_activities` | Find activities similar to a reference activity |
 
 ### Health & Wellness (4 tools)
 
 | Tool                     | Description                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------- |
-| `query-health-summary`   | Query daily health summaries with pagination (stats, readiness, Body Battery) |
-| `query-sleep-data`       | Query sleep data with stages, scores, and HRV                                 |
-| `query-heart-rate-data`  | Query heart rate data with resting HR                                         |
-| `query-activity-metrics` | Query activity metrics (steps, stress, respiration, SpO2, etc.)               |
+| `query_health_summary`   | Query daily health summaries with pagination (stats, readiness, Body Battery) |
+| `query_sleep_data`       | Query sleep data with stages, scores, and HRV                                 |
+| `query_heart_rate_data`  | Query heart rate data with resting HR                                         |
+| `query_activity_metrics` | Query activity metrics (steps, stress, respiration, SpO2, etc.)               |
 
 ### Training (3 tools)
 
 | Tool                      | Description                                                         |
 | ------------------------- | ------------------------------------------------------------------- |
-| `analyze-training-period` | Analyze training over a time period with insights                   |
-| `get-performance-metrics` | Get performance metrics (VO2 max, hill score, endurance, HRV, etc.) |
-| `get-training-effect`     | Get training effect and progress summary                            |
+| `analyze_training_period` | Analyze training over a time period with insights                   |
+| `get_performance_metrics` | Get performance metrics (VO2 max, hill score, endurance, HRV, etc.) |
+| `get_training_effect`     | Get training effect and progress summary                            |
 
 ### User Profile (1 tool)
 
 | Tool               | Description                                          |
 | ------------------ | ---------------------------------------------------- |
-| `get-user-profile` | Get comprehensive athlete profile with stats and PRs |
+| `get_user_profile` | Get comprehensive athlete profile with stats and PRs |
 
 ### Challenges & Goals (2 tools)
 
 | Tool                      | Description                                         |
 | ------------------------- | --------------------------------------------------- |
-| `query-goals-and-records` | Query goals, personal records, and race predictions |
-| `query-challenges`        | Query challenges and badges (by status and type)    |
+| `query_goals_and_records` | Query goals, personal records, and race predictions |
+| `query_challenges`        | Query challenges and badges (by status and type)    |
 
 ### Devices & Gear (2 tools)
 
 | Tool            | Description                                                  |
 | --------------- | ------------------------------------------------------------ |
-| `query-devices` | Query device information (with settings, solar data, alarms) |
-| `query-gear`    | Query gear and equipment (with defaults and usage stats)     |
+| `query_devices` | Query device information (with settings, solar data, alarms) |
+| `query_gear`    | Query gear and equipment (with defaults and usage stats)     |
 
 ### Weight Management (2 tools)
 
 | Tool                 | Description                         |
 | -------------------- | ----------------------------------- |
-| `query-weight-data`  | Query weight data for date or range |
-| `manage-weight-data` | Add or delete weight entries        |
+| `query_weight_data`  | Query weight data for date or range |
+| `manage_weight_data` | Add or delete weight entries        |
 
 ### Other (3 tools)
 
 | Tool                  | Description                                      |
 | --------------------- | ------------------------------------------------ |
-| `manage-workouts`     | Workout management (list, get, download, upload) |
-| `log-health-data`     | Log body composition, blood pressure, hydration  |
-| `query-womens-health` | Query pregnancy and menstrual cycle data         |
+| `manage_workouts`     | Workout management (list, get, download, upload) |
+| `log_health_data`     | Log body composition, blood pressure, hydration  |
+| `query_womens_health` | Query pregnancy and menstrual cycle data         |
 
 ## MCP Resources
 
@@ -342,12 +342,12 @@ Prompt templates for common queries (accessible via prompt suggestion in Claude)
 
 | Prompt                     | Description                                         |
 | -------------------------- | --------------------------------------------------- |
-| `analyze-recent-training`  | Analyze training over a specified period            |
-| `sleep-quality-report`     | Sleep quality analysis with recommendations         |
-| `training-readiness-check` | Check if ready to train hard today                  |
-| `activity-deep-dive`       | Deep dive into a specific activity with all metrics |
-| `compare-recent-runs`      | Compare recent runs to identify trends              |
-| `health-summary`           | Comprehensive health overview                       |
+| `analyze_recent_training`  | Analyze training over a specified period            |
+| `sleep_quality_report`     | Sleep quality analysis with recommendations         |
+| `training_readiness_check` | Check if ready to train hard today                  |
+| `activity_deep_dive`       | Deep dive into a specific activity with all metrics |
+| `compare_recent_runs`      | Compare recent runs to identify trends              |
+| `health_summary`           | Comprehensive health overview                       |
 
 ## License
 
